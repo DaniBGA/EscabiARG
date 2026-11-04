@@ -32,6 +32,12 @@ agregar amigos usá los códigos de prueba que aparecen en el panel de amigos
 
 Cuando la app esté lista para el público, ocultá la demo con `VITE_ENABLE_DEMO=false`.
 
+## Deploy
+
+👉 Paso a paso completo (Supabase + Netlify, con problemas comunes): **[DEPLOY.md](DEPLOY.md)**.
+Para un proyecto nuevo de Supabase alcanza con correr una sola vez
+[`supabase/setup_completo.sql`](supabase/setup_completo.sql) en el SQL Editor.
+
 ## Configurar Supabase (una sola vez)
 
 1. Creá un proyecto en [supabase.com](https://supabase.com/dashboard).
