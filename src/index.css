@@ -1,9 +1,45 @@
+/*
+ * EscabiARG — estilo "bar argentino": pizarrón con tiza, comandas de papel,
+ * sellos de goma y carteles pintados. (La pantalla de carga tiene su propio CSS.)
+ */
 :root {
-  --font-display: 'Lilita One', 'Arial Rounded MT Bold', system-ui, sans-serif;
-  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Tipografías */
+  --font-logo: 'Lilita One', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  --font-display: var(--font-logo); /* lo usa la pantalla de carga */
+  --font-title: 'Alfa Slab One', Georgia, serif;
+  --font-hand: 'Caveat Brush', 'Comic Sans MS', cursive;
+  --font-label: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Colores */
+  --ink: #16110c;
+  --ink-2: #211913;
+  --ink-3: #2c221a;
+  --board: #1d2a23;
+  --chalk: #efece2;
+  --chalk-dim: rgba(239, 236, 226, 0.62);
+  --line: rgba(239, 236, 226, 0.13);
+  --paper: #f3e7c9;
+  --paper-2: #e6d6ad;
+  --paper-ink: #2a1d10;
+  --amber: #f2a71b;
+  --amber-deep: #9a5d05;
+  --red: #d6442c;
+  --red-deep: #8d2414;
+  --green: #3a8a5f;
+  --green-deep: #1e5136;
+  --blue: #3567a0;
+  --blue-deep: #1c3a5f;
+  --mustard: #d9b23a;
+  --night: #2a2350;
+
+  /* Texturas */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grain-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 
   color-scheme: dark;
   font-family: var(--font-body);
+  font-size: 16px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -23,55 +59,29 @@ body,
 }
 
 body {
-  background: #1a0f08;
-  color: #fff6dc;
+  background: var(--ink) var(--grain);
+  color: var(--chalk);
   overscroll-behavior: none;
 }
 
-/* ---------- Campos de formulario (compartidos) ---------- */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-weight: 700;
-  font-size: 0.92rem;
-  color: #fff6dc;
+/* ---------- Superficies reutilizables ---------- */
+
+/* Papel de comanda */
+.paper {
+  background: var(--paper) var(--grain);
+  color: var(--paper-ink);
 }
 
-.field input {
-  width: 100%;
-  min-height: 48px;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 2px solid rgba(255, 246, 220, 0.2);
-  background: rgba(255, 246, 220, 0.06);
-  color: #fff6dc;
-  font: inherit;
-  font-weight: 600;
-  font-size: 1rem;
+/* Pizarrón */
+.board-surface {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(255, 255, 255, 0.05), transparent 50%),
+    radial-gradient(ellipse at 85% 80%, rgba(255, 255, 255, 0.035), transparent 45%),
+    var(--grain-light),
+    var(--board);
 }
 
-.field input::placeholder {
-  color: rgba(255, 246, 220, 0.4);
-}
-
-.field input:focus {
-  outline: none;
-  border-color: #ffd56b;
-  background: rgba(255, 246, 220, 0.1);
-}
-
-.field input[type='date'] {
-  color-scheme: dark;
-}
-
-.field-hint {
-  font-weight: 600;
-  font-size: 0.8rem;
-  opacity: 0.6;
-}
-
-/* ---------- Botones (compartidos) ---------- */
+/* ---------- Botones ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -79,43 +89,66 @@ body {
   gap: 8px;
   min-height: 48px;
   padding: 0 18px;
-  border-radius: 14px;
-  border: 2px solid transparent;
-  font: inherit;
+  border-radius: 10px;
+  border: 2px solid var(--ink);
+  font-family: var(--font-label);
   font-weight: 800;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.12s ease;
 }
 
-.btn:hover { filter: brightness(1.06); }
-.btn:active { transform: scale(0.97); }
-.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; filter: none; }
+.btn:active { transform: translateY(3px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .btn--primary {
-  background: linear-gradient(180deg, #f7b52c, #e8920f);
-  color: #2a1606;
+  background: var(--amber);
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--amber-deep);
 }
+
+.btn--primary:active { box-shadow: 0 1px 0 var(--amber-deep); }
+.btn--primary:hover:not(:disabled) { background: #f7b53a; }
 
 .btn--ghost {
   background: transparent;
-  color: #fff6dc;
-  border-color: rgba(255, 246, 220, 0.3);
+  color: var(--chalk);
+  border-color: currentColor;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.5);
 }
 
-.btn--ghost:hover { background: rgba(255, 246, 220, 0.08); }
+.btn--ghost:active { box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
+.btn--ghost:hover:not(:disabled) { background: rgba(239, 236, 226, 0.06); }
 
 .btn--danger {
   background: transparent;
-  color: #ffb4a6;
-  border-color: rgba(255, 180, 166, 0.35);
+  color: #ffb3a4;
+  border-color: currentColor;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.5);
 }
+
+.btn--danger-solid {
+  background: var(--red);
+  color: #fff8f0;
+  box-shadow: 0 4px 0 var(--red-deep);
+}
+
+.btn--danger-solid:active { box-shadow: 0 1px 0 var(--red-deep); }
 
 .btn--block { width: 100%; }
 
+/* Sobre papel */
+.paper .btn--ghost,
+.on-paper .btn--ghost {
+  color: var(--paper-ink);
+  box-shadow: 0 4px 0 rgba(42, 29, 16, 0.25);
+}
+
 .btn:focus-visible,
 .icon-btn:focus-visible {
-  outline: 3px solid #ffd56b;
+  outline: 3px solid var(--amber);
   outline-offset: 3px;
 }
 
@@ -127,31 +160,125 @@ body {
   height: 44px;
   flex: none;
   padding: 0;
-  border: 0;
+  border: 2px solid var(--line);
   border-radius: 50%;
-  background: rgba(255, 246, 220, 0.08);
+  background: transparent;
   color: inherit;
   cursor: pointer;
 }
 
-.icon-btn:hover { background: rgba(255, 246, 220, 0.16); }
+.icon-btn:hover { border-color: var(--chalk-dim); }
 
+/* ---------- Carteles pintados (títulos de sección) ---------- */
+.sign {
+  display: inline-block;
+  margin: 0;
+  padding: 5px 12px 4px;
+  background: var(--accent, var(--amber));
+  color: var(--sign-ink, var(--ink));
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 var(--ink);
+  transform: rotate(-1.2deg);
+}
+
+/* ---------- Avisos ---------- */
 .notice {
   margin: 12px 0 0;
   padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(255, 213, 107, 0.14);
-  color: #ffd56b;
-  font-size: 0.92rem;
+  border-radius: 8px;
+  border-left: 4px solid var(--amber);
+  background: rgba(242, 167, 27, 0.1);
+  color: #ffd98a;
+  font-size: 0.94rem;
   font-weight: 600;
 }
 
 .notice--error {
-  background: rgba(255, 107, 87, 0.16);
-  color: #ffb4a6;
+  border-left-color: var(--red);
+  background: rgba(214, 68, 44, 0.12);
+  color: #ffb3a4;
 }
 
-.btn--danger-solid {
-  background: linear-gradient(180deg, #ff8a73, #e5533c);
-  color: #2a0a04;
+.paper .notice,
+.on-paper .notice { color: #7a4a00; background: rgba(242, 167, 27, 0.18); }
+.paper .notice--error,
+.on-paper .notice--error { color: var(--red-deep); background: rgba(214, 68, 44, 0.12); }
+
+/* ---------- Campos de formulario ---------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
 }
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 2px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--chalk);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.field input::placeholder { color: rgba(239, 236, 226, 0.35); }
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--amber);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.field input[type='date'] { color-scheme: dark; }
+
+.field-hint {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.82rem;
+  letter-spacing: normal;
+  text-transform: none;
+  opacity: 0.8;
+}
+
+/* Etiquetas tipo sello */
+.stamp {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  font-family: var(--font-label);
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: rotate(-3deg);
+}
+
+.stamp--ok { color: #6fd39b; }
+.stamp--no { color: #ff8b76; }
+.stamp--wait { color: var(--amber); }
+
+.paper .stamp--ok { color: var(--green-deep); }
+.paper .stamp--no { color: var(--red-deep); }
+.paper .stamp--wait { color: #9a5d05; }

@@ -26,6 +26,7 @@
 
 /* ---------- Estado de carga ---------- */
 .loader-status {
+  font-family: "Nunito", system-ui, sans-serif;
   position: absolute;
   inset: 0;
   z-index: 3;

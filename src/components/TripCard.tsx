@@ -2,20 +2,22 @@ import type { Trip } from '../lib/api'
 import { outingState } from '../lib/game'
 import { markCameFromHome, tripPath } from '../lib/router'
 import Avatar from './Avatar'
-import { CalendarIcon, PinIcon } from './icons'
+import { PinIcon } from './icons'
 import './TripCard.css'
 
 const MAX_AVATARS = 5
 
-function formatDate(iso: string) {
+function dateParts(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('es-AR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
+  const date = new Date(y, m - 1, d)
+  return {
+    day: d,
+    month: date.toLocaleDateString('es-AR', { month: 'short' }).replace('.', ''),
+    weekday: date.toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', ''),
+  }
 }
 
+/** Cada plan es una entrada: datos a la izquierda, talón con la fecha a la derecha */
 export default function TripCard({ trip, myId, pending = 0 }: { trip: Trip; myId: string; pending?: number }) {
   const owner = trip.members.find((m) => m.role === 'owner')
   const isMine = trip.owner_id === myId
@@ -25,51 +27,53 @@ export default function TripCard({ trip, myId, pending = 0 }: { trip: Trip; myId
   )
   const shown = members.slice(0, MAX_AVATARS)
   const extra = members.length - shown.length
+  const date = trip.trip_date ? dateParts(trip.trip_date) : null
 
   return (
-    <a className="trip-card" href={tripPath(trip.id)} onClick={markCameFromHome}>
-      <div className="trip-card-top">
-        <h3 className="trip-name">{trip.name}</h3>
+    <a className={`trip-card trip-card--${trip.kind}`} href={tripPath(trip.id)} onClick={markCameFromHome}>
+      <div className="trip-ticket">
         <span className="trip-badges">
-          <span className={`trip-kind trip-kind--${trip.kind}`}>
-            {trip.kind === 'salida' ? '🌙 Previa y salida' : '🧳 Viaje'}
-          </span>
+          <span className="trip-kind">{trip.kind === 'salida' ? 'Previa y salida' : 'Viaje'}</span>
           {trip.kind === 'salida' && (
-            <span className={`trip-kind trip-kind--${outing}`}>
-              {outing === 'open' ? '🔴 Hoy' : outing === 'upcoming' ? 'Próximamente' : '🏁 Terminada'}
+            <span className={`trip-state trip-state--${outing}`}>
+              {outing === 'open' ? 'Hoy' : outing === 'upcoming' ? 'Próximamente' : 'Terminada'}
             </span>
           )}
-          <span className={`trip-role${isMine ? ' trip-role--mine' : ''}`}>
-            {isMine ? 'Organizás vos' : `Invita ${owner?.profile?.display_name ?? 'un amigo'}`}
-          </span>
         </span>
-      </div>
-
-      {(trip.trip_date || trip.place) && (
+        <h3 className="trip-name">{trip.name}</h3>
         <p className="trip-meta">
-          {trip.trip_date && (
-            <span className="trip-date"><CalendarIcon /> {formatDate(trip.trip_date)}</span>
-          )}
           {trip.place && (
             <span><PinIcon /> {trip.place}</span>
           )}
+          <span className="trip-role">{isMine ? 'Organizás vos' : `Invita ${owner?.profile?.display_name ?? 'un amigo'}`}</span>
         </p>
-      )}
-
-      <div className="trip-members">
-        <span className="trip-avatars">
-          {shown.map((m) => (
-            <Avatar key={m.user_id} id={m.user_id} name={m.profile?.display_name ?? '?'} size={30} />
-          ))}
-          {extra > 0 && <span className="trip-more">+{extra}</span>}
-        </span>
-        <span className="trip-count">
-          {trip.members.length} {trip.members.length === 1 ? 'persona' : 'personas'}
-        </span>
+        <div className="trip-members">
+          <span className="trip-avatars">
+            {shown.map((m) => (
+              <Avatar key={m.user_id} id={m.user_id} name={m.profile?.display_name ?? '?'} size={28} />
+            ))}
+            {extra > 0 && <span className="trip-more">+{extra}</span>}
+          </span>
+          <span className="trip-count">
+            {trip.members.length} {trip.members.length === 1 ? 'persona' : 'personas'}
+          </span>
+        </div>
       </div>
-      <span className="trip-open" aria-hidden="true">Entrar →</span>
+
+      <div className="trip-stub" aria-hidden={!date}>
+        {date ? (
+          <>
+            <span className="stub-week">{date.weekday}</span>
+            <span className="stub-day">{date.day}</span>
+            <span className="stub-month">{date.month}</span>
+          </>
+        ) : (
+          <span className="stub-none">Sin fecha</span>
+        )}
+      </div>
+
       {pending > 0 && (
-        <span className="trip-pending">🔔 {pending} {pending === 1 ? 'pendiente' : 'pendientes'}</span>
+        <span className="trip-pending" aria-label={`${pending} pendientes`}>{pending}</span>
       )}
     </a>
   )

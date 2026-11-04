@@ -74,14 +74,14 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true }: 
   }
 
   return (
-    <section className="card-box" id="prendas" aria-labelledby="forfeits-title">
-      <h3 id="forfeits-title" className="box-title">🙈 Infracciones y prendas</h3>
+    <section className="card-box card-box--forfeit" id="prendas" aria-labelledby="forfeits-title">
+      <h3 id="forfeits-title" className="box-title">Infracciones y prendas</h3>
       <p className="muted">
         ¿Alguien se levantó tarde o terminó roto? Reportalo: si la mayoría lo valida, le toca una prenda al azar.
       </p>
       {canReport && (
         <button type="button" className="btn btn--ghost btn--block forfeit-report" onClick={() => setReporting(true)}>
-          📋 Reportar infracción
+          Reportar infracción
         </button>
       )}
 

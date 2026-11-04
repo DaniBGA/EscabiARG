@@ -1,6 +1,6 @@
 import './Avatar.css'
 
-const COLORS = ['#f7b52c', '#e8920f', '#ffd56b', '#f28c38', '#d9a441', '#ffb347']
+const COLORS = ['#f2a71b', '#e0583f', '#5aa37a', '#5b8fcf', '#d9b23a', '#b07ad6', '#e98a3a']
 
 function colorFor(seed: string) {
   let h = 0

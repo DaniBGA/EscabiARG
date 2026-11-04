@@ -55,7 +55,7 @@ export default function MissionCard({ tripId, userId, rules, mission, underVote,
   }
 
   return (
-    <section className="card-box mission" aria-labelledby="mission-title">
+    <section className="mission paper" aria-labelledby="mission-title">
       <h3 id="mission-title" className="box-title">Tu misión de hoy</h3>
 
       {!mission ? (

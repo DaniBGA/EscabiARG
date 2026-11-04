@@ -70,6 +70,14 @@ Conectá el repo en Netlify; toma automáticamente `netlify.toml`
 (build `npm run build`, publica `dist`). Cargá las mismas variables de entorno en
 *Site configuration → Environment variables* y volvé a deployar.
 
+## Estilo
+
+La interfaz tiene onda de bar argentino: pizarrón con tiza para la tabla y la carta,
+comandas de papel para lo que hay que validar, entradas con talón para cada plan,
+sellos de goma, polaroids en la galería y carteles pintados para cada sección
+(tipografías Alfa Slab One, Caveat Brush y Barlow). La pantalla de carga mantiene
+su estilo original.
+
 ## Qué hay hasta ahora
 
 - **Pantalla de carga**: un vaso de cerveza dibujado en `<canvas>` que llena toda la
@@ -111,7 +119,8 @@ Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
   después hay **60 segundos** para votar la mejor (no se vota la propia). La
   ganadora pasa a ser la misión de ese jugador.
 - **Quiebre**: cualquiera del viaje reporta quién quebró con 1 a 3 fotos y se le
-  restan puntos (30 por defecto).
+  restan puntos (30 por defecto). Si estás en la app cuando alguien quiebra, aparece
+  una animación a pantalla completa (se puede repetir desde la actividad).
 - **Puntaje diario y general**: solo cuentan los puntos validados. La jornada
   termina a la hora que elige el organizador (por defecto **6:00, hora Argentina**).
 - **Galería**: todas las fotos del viaje (tragos, quebradas, misiones, casino,

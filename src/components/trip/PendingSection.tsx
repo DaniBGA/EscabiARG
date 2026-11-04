@@ -5,6 +5,7 @@ import { friendlyError } from '../../lib/errors'
 import { eventTally, formatDuelTime, formatPoints, formatTime, myPendingItems } from '../../lib/game'
 import Sheet from '../Sheet'
 import ChallengeCard from './ChallengeCard'
+import QuiebreGuy from './QuiebreGuy'
 
 type Props = {
   detail: TripDetail
@@ -56,7 +57,13 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
         )}
       </div>
       <div className="validate-body">
+        {e.kind === 'quiebre' && (
+          <span className="qg-mini" aria-hidden="true">
+            <QuiebreGuy size={76} loop />
+          </span>
+        )}
         <p className="validate-title">
+          <span className="validate-text">
           {e.kind === 'drink' ? (
             <>
               <strong>{name(e.user_id)}</strong> se tomó {e.emoji} {e.title}
@@ -78,6 +85,7 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
               <strong>{name(e.actor_id)}</strong> dice que <strong>{name(e.user_id)}</strong> quebró 😵
             </>
           )}
+          </span>
           {e.kind === 'infraction' ? (
             <span className="pts-chip is-zero">🙈 prenda</span>
           ) : e.kind !== 'casino' ? (
@@ -166,7 +174,7 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
   return (
     <section className="pending" aria-labelledby="pending-title">
       <h2 id="pending-title" className="pending-title">
-        🔔 Pendientes <span className="pending-count">{items.length}</span>
+        <span className="sign">Pendientes</span> <span className="pending-count">{items.length}</span>
       </h2>
       <p className="muted small">Mirá las fotos y decí si valen. Los puntos cuentan cuando los valida la mayoría.</p>
       <div className="pending-list">

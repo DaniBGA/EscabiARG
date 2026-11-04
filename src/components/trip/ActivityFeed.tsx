@@ -10,11 +10,13 @@ type Props = {
   members: TripMember[]
   userId: string
   today: string
+  /** Repetir la animación de un quiebre */
+  onReplayQuiebre?: (userId: string) => void
 }
 
 const MAX_EVENTS = 80
 
-export default function ActivityFeed({ events, eventVotes, members, userId, today }: Props) {
+export default function ActivityFeed({ events, eventVotes, members, userId, today, onReplayQuiebre }: Props) {
   const api = useApi()
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [viewing, setViewing] = useState<string | null>(null)
@@ -71,6 +73,11 @@ export default function ActivityFeed({ events, eventVotes, members, userId, toda
                   {e.detail && <p className="feed-detail">{e.kind === 'duel' ? `contra ${name(e.actor_id)} · ${e.detail}` : `“${e.detail}”`}</p>}
                   {(e.kind === 'quiebre' || e.kind === 'infraction') && e.actor_id !== e.user_id && (
                     <p className="feed-detail">Lo reportó {name(e.actor_id)}</p>
+                  )}
+                  {e.kind === 'quiebre' && onReplayQuiebre && (
+                    <button type="button" className="link-btn replay-btn" onClick={() => onReplayQuiebre(e.user_id)}>
+                      Ver quebrada
+                    </button>
                   )}
                   {e.photo_paths.length > 0 && (
                     <div className="feed-photos">

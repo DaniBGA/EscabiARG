@@ -23,7 +23,7 @@ export default function ScoreBoard({ members, events, cards, userId, today, sing
   const cardsOf = (id: string) => cards.filter((c) => c.user_id === id && c.status !== 'used').length
 
   return (
-    <section className="card-box" aria-labelledby="board-title">
+    <section className="card-box card-box--board board-surface" aria-labelledby="board-title">
       <div className="box-head">
         <h3 id="board-title" className="box-title">{singleDay ? 'Tabla de la noche' : 'Tabla'}</h3>
         {!singleDay && (

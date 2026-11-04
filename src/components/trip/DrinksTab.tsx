@@ -172,8 +172,8 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
 
   return (
     <>
-      <section className="card-box" aria-labelledby="drinks-title">
-        <h3 id="drinks-title" className="box-title">Carta de tragos</h3>
+      <section className="card-box card-box--board board-surface" aria-labelledby="drinks-title">
+        <h3 id="drinks-title" className="box-title">La carta</h3>
         {!isOwner && <p className="muted small">Solo el organizador puede armar la carta y elegir los puntos.</p>}
 
         {drinks.length === 0 ? (
@@ -181,7 +181,7 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
             <p>Todavía no hay tragos cargados.</p>
             {isOwner && (
               <button type="button" className="btn btn--ghost" onClick={addSuggested}>
-                ✨ Usar carta sugerida
+                Usar carta sugerida
               </button>
             )}
           </div>
@@ -196,6 +196,7 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
                 <li key={d.id} className="drink-row">
                   <span className="drink-emoji" aria-hidden="true">{d.emoji}</span>
                   <span className="drink-name">{d.name}</span>
+                  <span className="leader" aria-hidden="true" />
                   <span className="pts-chip">+{d.points}</span>
                   {isOwner && (
                     <span className="drink-actions">

@@ -112,7 +112,7 @@ export default function LoginOptions() {
               {isDemoEnabled && !isSupabaseConfigured && (
                 <>
                   <button type="button" className="login-btn login-btn--email" onClick={enterDemo}>
-                    🍺 Probar sin cuenta (demo)
+                    Probar sin cuenta (demo)
                   </button>
                   <p className="login-hint">
                     El login con cuenta todavía no está configurado. Mientras tanto, la demo te deja
@@ -139,7 +139,7 @@ export default function LoginOptions() {
 
               {isDemoEnabled && isSupabaseConfigured && (
                 <button type="button" className="login-btn login-btn--demo" onClick={enterDemo}>
-                  🍺 Probar sin cuenta (demo)
+                  Probar sin cuenta (demo)
                 </button>
               )}
             </div>

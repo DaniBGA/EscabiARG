@@ -10,7 +10,8 @@ type Props = {
   onDone?: () => void
 }
 
-const COLORS = ['#f7b52c', '#fff1cc', '#e8920f', '#ffd56b']
+const COLORS = ['#f2a71b', '#f3e7c9', '#d6442c', '#3a8a5f', '#3567a0', '#d9b23a']
+const DARK = new Set(['#d6442c', '#3a8a5f', '#3567a0'])
 const SPIN_MS = 4200
 
 const point = (deg: number, r: number) => {
@@ -57,12 +58,12 @@ export default function NameWheel({ players, targetId, animate, onDone }: Props)
           return (
             <g key={p.id}>
               {n === 1 ? (
-                <circle r="100" fill={COLORS[0]} stroke="#6b3a08" strokeWidth="1.5" />
+                <circle r="100" fill={COLORS[0]} stroke="#16110c" strokeWidth="1.5" />
               ) : (
                 <path
                   d={`M0 0 L${x1} ${y1} A100 100 0 ${seg > 180 ? 1 : 0} 1 ${x2} ${y2} Z`}
                   fill={COLORS[i % COLORS.length]}
-                  stroke="#6b3a08"
+                  stroke="#16110c"
                   strokeWidth="1.5"
                 />
               )}
@@ -72,18 +73,18 @@ export default function NameWheel({ players, targetId, animate, onDone }: Props)
                 dominantBaseline="central"
                 fontSize={n > 6 ? 11 : 14}
                 fontWeight="800"
-                fill="#2a1606"
+                fill={DARK.has(COLORS[i % COLORS.length]) ? '#f3e7c9' : '#16110c'}
               >
                 {label}
               </text>
             </g>
           )
         })}
-        <circle r="16" fill="#6b3a08" />
-        <circle r="9" fill="#ffd56b" />
+        <circle r="16" fill="#16110c" />
+        <circle r="9" fill="#f2a71b" />
       </g>
-      <circle r="101" fill="none" stroke="#2a1606" strokeWidth="4" />
-      <path d="M-11 -112 L11 -112 L0 -88 Z" fill="#fff6dc" stroke="#2a1606" strokeWidth="2" />
+      <circle r="101" fill="none" stroke="#16110c" strokeWidth="4" />
+      <path d="M-11 -112 L11 -112 L0 -88 Z" fill="#f3e7c9" stroke="#16110c" strokeWidth="2" />
     </svg>
   )
 }

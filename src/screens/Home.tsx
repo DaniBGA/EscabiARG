@@ -7,7 +7,7 @@ import CreateTripSheet from '../components/CreateTripSheet'
 import FriendsSheet from '../components/FriendsSheet'
 import ProfileSheet from '../components/ProfileSheet'
 import TripCard from '../components/TripCard'
-import { FriendsIcon, PlusIcon } from '../components/icons'
+import { FriendsIcon, MoonIcon, PlusIcon } from '../components/icons'
 import './Home.css'
 
 type Panel = 'none' | 'create' | 'create-outing' | 'friends' | 'profile'
@@ -115,11 +115,13 @@ export default function Home({ user }: { user: AppUser }) {
           </p>
         )}
 
-        <p className="home-greeting">¡Hola, {me.display_name}! 🍻</p>
+        <p className="home-greeting">
+          <span>¡Hola,</span> {me.display_name}!
+        </p>
 
         {totalPending > 0 && trips && (
           <div className="home-pending" role="status">
-            <strong>🔔 Tenés {totalPending} {totalPending === 1 ? 'cosa' : 'cosas'} para validar o votar</strong>
+            <strong>Tenés {totalPending} {totalPending === 1 ? 'cosa' : 'cosas'} para validar o votar</strong>
             <span>
               {trips
                 .filter((t) => pending[t.id])
@@ -138,7 +140,7 @@ export default function Home({ user }: { user: AppUser }) {
             </span>
           </button>
           <button type="button" className="create-trip create-trip--night" onClick={() => setPanel('create-outing')}>
-            <span className="create-trip-icon" aria-hidden="true">🌙</span>
+            <span className="create-trip-icon" aria-hidden="true"><MoonIcon size={26} /></span>
             <span className="create-trip-text">
               <strong>Previa y salida</strong>
               <span>Lo mismo, pero solo por una noche</span>
@@ -149,7 +151,7 @@ export default function Home({ user }: { user: AppUser }) {
         {error && <p className="notice notice--error" role="alert">{error}</p>}
 
         <section className="trips" aria-labelledby="trips-title">
-          <h2 id="trips-title" className="trips-title">Tus viajes y salidas</h2>
+          <h2 id="trips-title" className="sign trips-title">Tus planes</h2>
 
           {trips === null ? (
             <p className="trips-empty">Cargando…</p>

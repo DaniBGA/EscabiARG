@@ -92,3 +92,33 @@ export const TrashIcon = ({ size = 18 }: IconProps) => (
     <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
   </svg>
 )
+
+export const MoonIcon = ({ size = 22 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+  </svg>
+)
+
+export const MugIcon = ({ size = 24 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M5 8h10v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8z" />
+    <path d="M15 11h2.5a2.5 2.5 0 0 1 0 5H15" />
+    <path d="M5 8c0-2 1.5-3 3-3 .5-1.5 2-2 3.2-1.5C12.5 2.5 15 3.5 15 6v2" />
+    <path d="M8.5 12v5M11.5 12v5" />
+  </svg>
+)
+
+export const DizzyIcon = ({ size = 24 }: IconProps) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M7.5 8.5l2 2m0-2l-2 2M14.5 8.5l2 2m0-2l-2 2" />
+    <path d="M9 16.5c1.8-1.2 4.2-1.2 6 0" />
+  </svg>
+)
+
+export const BellIcon = ({ size = 22 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4l2-2z" />
+    <path d="M10 20a2 2 0 0 0 4 0" />
+  </svg>
+)
