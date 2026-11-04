@@ -1,4 +1,5 @@
 import type { Trip } from '../lib/api'
+import { markCameFromHome, tripPath } from '../lib/router'
 import Avatar from './Avatar'
 import { CalendarIcon, PinIcon } from './icons'
 import './TripCard.css'
@@ -24,7 +25,7 @@ export default function TripCard({ trip, myId }: { trip: Trip; myId: string }) {
   const extra = members.length - shown.length
 
   return (
-    <article className="trip-card">
+    <a className="trip-card" href={tripPath(trip.id)} onClick={markCameFromHome}>
       <div className="trip-card-top">
         <h3 className="trip-name">{trip.name}</h3>
         <span className={`trip-role${isMine ? ' trip-role--mine' : ''}`}>
@@ -54,6 +55,7 @@ export default function TripCard({ trip, myId }: { trip: Trip; myId: string }) {
           {trip.members.length} {trip.members.length === 1 ? 'persona' : 'personas'}
         </span>
       </div>
-    </article>
+      <span className="trip-open" aria-hidden="true">Entrar →</span>
+    </a>
   )
 }

@@ -29,6 +29,75 @@ export type NewTrip = {
   memberIds: string[]
 }
 
+// ---------- Juego del viaje ----------
+
+export type Difficulty = 'easy' | 'medium' | 'extreme'
+
+export type CardKey = 'ronda_casa' | 'manotazo' | 'doble' | 'escudo' | 'dj' | 'brindis'
+
+export type TripRules = {
+  mission_points_easy: number
+  mission_points_medium: number
+  mission_points_extreme: number
+  quiebre_penalty: number
+}
+
+export type Drink = {
+  id: string
+  trip_id: string
+  name: string
+  emoji: string
+  points: number
+}
+
+export type DrinkInput = { id?: string; name: string; emoji: string; points: number }
+
+export type TripEvent = {
+  id: string
+  trip_id: string
+  user_id: string
+  actor_id: string
+  kind: 'drink' | 'mission' | 'quiebre' | 'card'
+  points: number
+  day: string
+  title: string
+  emoji: string
+  detail: string | null
+  photo_paths: string[]
+  created_at: string
+}
+
+export type DailyMission = {
+  id: string
+  trip_id: string
+  user_id: string
+  day: string
+  difficulty: Difficulty
+  mission: string
+  points: number
+  completed_at: string | null
+  photo_path: string | null
+}
+
+export type PlayerCard = {
+  id: string
+  trip_id: string
+  user_id: string
+  card_key: CardKey
+  won_day: string
+  status: 'available' | 'active' | 'used'
+  target_user_id: string | null
+  created_at: string
+}
+
+export type TripDetail = {
+  trip: Trip & TripRules
+  drinks: Drink[]
+  events: TripEvent[]
+  missions: DailyMission[]
+  cards: PlayerCard[]
+}
+
 /** Operaciones de datos de la app (implementadas con Supabase o con la demo local) */
 export type Api = {
   getMyProfile(userId: string): Promise<Profile>
@@ -38,6 +107,19 @@ export type Api = {
   removeFriend(friendId: string): Promise<void>
   listTrips(): Promise<Trip[]>
   createTrip(trip: NewTrip): Promise<string>
+
+  getTrip(tripId: string): Promise<TripDetail>
+  saveDrink(tripId: string, drink: DrinkInput): Promise<void>
+  archiveDrink(drinkId: string): Promise<void>
+  updateRules(tripId: string, rules: TripRules): Promise<void>
+  uploadPhoto(tripId: string, userId: string, photo: Blob): Promise<string>
+  getPhotoUrls(paths: string[]): Promise<Record<string, string>>
+  logDrink(tripId: string, drinkId: string, photoPath: string): Promise<void>
+  chooseMission(tripId: string, difficulty: Difficulty): Promise<void>
+  completeMission(tripId: string, photoPath: string | null): Promise<void>
+  reportQuiebre(tripId: string, userId: string, photoPaths: string[]): Promise<void>
+  spinRoulette(tripId: string, day: string): Promise<CardKey>
+  redeemCard(cardId: string, targetId: string | null): Promise<void>
 }
 
 /** Lanza un Error con el mensaje de Supabase (los RPC usan códigos tipo FRIEND_IS_SELF) */
@@ -110,6 +192,105 @@ async function createTrip(trip: NewTrip): Promise<string> {
   ) as string
 }
 
+// ---------- Juego del viaje (Supabase) ----------
+
+const PHOTO_BUCKET = 'trip-photos'
+
+const TRIP_COLUMNS =
+  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, members:trip_members(user_id, role, profile:profiles(id, display_name))'
+
+async function getTrip(tripId: string): Promise<TripDetail> {
+  const sb = requireSupabase()
+  const [trip, drinks, events, missions, cards] = await Promise.all([
+    sb.from('trips').select(TRIP_COLUMNS).eq('id', tripId).single(),
+    sb
+      .from('trip_drinks')
+      .select('id, trip_id, name, emoji, points')
+      .eq('trip_id', tripId)
+      .eq('archived', false)
+      .order('points'),
+    sb
+      .from('trip_events')
+      .select('id, trip_id, user_id, actor_id, kind, points, day, title, emoji, detail, photo_paths, created_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false }),
+    sb
+      .from('daily_missions')
+      .select('id, trip_id, user_id, day, difficulty, mission, points, completed_at, photo_path')
+      .eq('trip_id', tripId),
+    sb
+      .from('player_cards')
+      .select('id, trip_id, user_id, card_key, won_day, status, target_user_id, created_at')
+      .eq('trip_id', tripId)
+      .order('created_at'),
+  ])
+  return {
+    trip: check(trip) as unknown as TripDetail['trip'],
+    drinks: check(drinks) as Drink[],
+    events: check(events) as TripEvent[],
+    missions: check(missions) as DailyMission[],
+    cards: check(cards) as PlayerCard[],
+  }
+}
+
+async function saveDrink(tripId: string, drink: DrinkInput) {
+  const sb = requireSupabase()
+  const row = { name: drink.name.trim(), emoji: drink.emoji, points: drink.points }
+  if (drink.id) check(await sb.from('trip_drinks').update(row).eq('id', drink.id))
+  else check(await sb.from('trip_drinks').insert({ ...row, trip_id: tripId }))
+}
+
+async function archiveDrink(drinkId: string) {
+  const sb = requireSupabase()
+  check(await sb.from('trip_drinks').update({ archived: true }).eq('id', drinkId))
+}
+
+async function updateRules(tripId: string, rules: TripRules) {
+  const sb = requireSupabase()
+  check(await sb.from('trips').update(rules).eq('id', tripId))
+}
+
+async function uploadPhoto(tripId: string, userId: string, photo: Blob) {
+  const sb = requireSupabase()
+  const path = `${tripId}/${userId}/${crypto.randomUUID()}.jpg`
+  const { error } = await sb.storage
+    .from(PHOTO_BUCKET)
+    .upload(path, photo, { contentType: 'image/jpeg', upsert: false })
+  if (error) throw new Error(error.message)
+  return path
+}
+
+// URLs firmadas: el bucket es privado
+const signedCache = new Map<string, { url: string; expires: number }>()
+
+async function getPhotoUrls(paths: string[]) {
+  const sb = requireSupabase()
+  const now = Date.now()
+  const result: Record<string, string> = {}
+  const missing: string[] = []
+  for (const p of new Set(paths)) {
+    const cached = signedCache.get(p)
+    if (cached && cached.expires > now) result[p] = cached.url
+    else missing.push(p)
+  }
+  if (missing.length > 0) {
+    const { data, error } = await sb.storage.from(PHOTO_BUCKET).createSignedUrls(missing, 3600)
+    if (error) throw new Error(error.message)
+    for (const item of data ?? []) {
+      if (item.path && item.signedUrl) {
+        result[item.path] = item.signedUrl
+        signedCache.set(item.path, { url: item.signedUrl, expires: now + 50 * 60_000 })
+      }
+    }
+  }
+  return result
+}
+
+async function rpc(fn: string, args: Record<string, unknown>) {
+  const sb = requireSupabase()
+  return check(await sb.rpc(fn, args))
+}
+
 export const supabaseApi: Api = {
   getMyProfile,
   updateDisplayName,
@@ -118,4 +299,29 @@ export const supabaseApi: Api = {
   removeFriend,
   listTrips,
   createTrip,
+
+  getTrip,
+  saveDrink,
+  archiveDrink,
+  updateRules,
+  uploadPhoto,
+  getPhotoUrls,
+  async logDrink(tripId, drinkId, photoPath) {
+    await rpc('log_drink', { p_trip: tripId, p_drink: drinkId, p_photo: photoPath })
+  },
+  async chooseMission(tripId, difficulty) {
+    await rpc('choose_daily_mission', { p_trip: tripId, p_difficulty: difficulty })
+  },
+  async completeMission(tripId, photoPath) {
+    await rpc('complete_daily_mission', { p_trip: tripId, p_photo: photoPath })
+  },
+  async reportQuiebre(tripId, userId, photoPaths) {
+    await rpc('report_quiebre', { p_trip: tripId, p_user: userId, p_photos: photoPaths })
+  },
+  async spinRoulette(tripId, day) {
+    return (await rpc('spin_roulette', { p_trip: tripId, p_day: day })) as CardKey
+  },
+  async redeemCard(cardId, targetId) {
+    await rpc('redeem_card', { p_card: cardId, p_target: targetId })
+  },
 }

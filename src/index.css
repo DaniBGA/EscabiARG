@@ -150,3 +150,8 @@ body {
   background: rgba(255, 107, 87, 0.16);
   color: #ffb4a6;
 }
+
+.btn--danger-solid {
+  background: linear-gradient(180deg, #ff8a73, #e5533c);
+  color: #2a0a04;
+}

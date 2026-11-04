@@ -66,3 +66,29 @@ export const CheckIcon = ({ size = 16 }: IconProps) => (
     <path d="m5 12 5 5 9-10" />
   </svg>
 )
+
+export const CameraIcon = ({ size = 22 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+    <circle cx="12" cy="13.5" r="3.5" />
+  </svg>
+)
+
+export const BackIcon = ({ size = 24 }: IconProps) => (
+  <svg {...base(size)} strokeWidth={2.4}>
+    <path d="M15 5l-7 7 7 7" />
+  </svg>
+)
+
+export const EditIcon = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M4 20h4L19 9l-4-4L4 16v4z" />
+    <path d="M13.5 6.5l4 4" />
+  </svg>
+)
+
+export const TrashIcon = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+  </svg>
+)

@@ -24,7 +24,9 @@ Para recorrer las pantallas sin registrarte ni configurar nada:
 - abrí la app con `?demo` al final de la URL (ej: `https://tu-sitio.netlify.app/?demo`).
 
 La demo trae amigos y viajes de ejemplo, y todo lo que hagas (agregar amigos,
-crear viajes, cambiar tu nombre) se guarda **solo en ese navegador**. Para
+crear viajes, cargar tragos con fotos, misiones, quiebres, ruleta) se guarda
+**solo en ese navegador**. En el viaje "Finde en la costa" sos el organizador y
+ganaste la jornada de ayer, así que podés girar la ruleta apenas entrás. Para
 agregar amigos usá los códigos de prueba que aparecen en el panel de amigos
 (`COLO22`, `SOFI99`, `NACHO7`). Al tocar "Salir de la demo" se borran los datos.
 
@@ -33,8 +35,11 @@ Cuando la app esté lista para el público, ocultá la demo con `VITE_ENABLE_DEM
 ## Configurar Supabase (una sola vez)
 
 1. Creá un proyecto en [supabase.com](https://supabase.com/dashboard).
-2. **Base de datos**: en *SQL Editor*, pegá y ejecutá
-   `supabase/migrations/20261104000000_amigos_y_viajes.sql`
+2. **Base de datos**: en *SQL Editor*, pegá y ejecutá **en este orden**:
+   1. `supabase/migrations/20261104000000_amigos_y_viajes.sql`
+   2. `supabase/migrations/20261105000000_juego_del_viaje.sql` (también crea el
+      bucket privado `trip-photos` de Storage para las fotos)
+
    (o con la CLI: `supabase link` + `supabase db push`).
 3. **Login** (*Authentication → Sign In / Providers*):
    - **Email**: viene habilitado. Si dejás *Confirm email* activado, el usuario
@@ -71,12 +76,44 @@ Conectá el repo en Netlify; toma automáticamente `netlify.toml`
 - **Inicio**: logo arriba, botón de **amigos** (tu código + agregar por código),
   **Crear viaje** (nombre, fecha, lugar e invitar amigos) y la lista de **tus viajes**.
 
+### Pantalla del viaje
+
+Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
+
+- **Tragos con puntos**: el organizador arma la carta (nombre, ícono y puntos) y
+  las reglas. Los demás solo la ven.
+- **Cargar trago**: elegís el trago y **sacás una foto en el momento** (se abre la
+  cámara). Fotos viejas se rechazan; el servidor además solo acepta fotos subidas
+  hace menos de 30 minutos y que no se hayan usado antes.
+- **Misión diaria**: cada jugador elige Fácil / Intermedia / Extrema y le toca una
+  misión al azar. Puntos por defecto: 10 / 25 / 50 (el organizador los cambia).
+- **Quiebre**: cualquiera del viaje reporta quién quebró con 1 a 3 fotos y se le
+  restan puntos (30 por defecto).
+- **Puntaje diario y general**: la jornada va de **6:00 a 6:00 (hora Argentina)**.
+- **Ruleta**: cuando termina una jornada, quien más sumó (si hay empate, todos los
+  empatados) gira la ruleta una vez y gana una **carta comodín** para usar cuando quiera:
+
+  | Comodín | Efecto |
+  | --- | --- |
+  | 🎁 Ronda de la casa | +20 puntos |
+  | 🦹 Manotazo | le sacás 15 puntos a otro jugador |
+  | ✌️ Doble o nada | tu próximo trago suma el doble |
+  | 🛡️ Escudo anti-quiebre | la próxima vez que quebrás no te restan |
+  | 🎧 DJ de la noche | elegís la música una hora |
+  | 🥂 Brindis en tu honor | todos brindan por vos |
+
 ### Modelo de datos
 
 - `profiles`: nombre y `friend_code` de 6 caracteres (se crea solo al registrarse).
 - `friendships`: amistad mutua (al agregar a alguien por código quedan los dos como amigos).
 - `trips` + `trip_members`: viajes y quiénes participan (el creador queda como `owner`).
+  `trips` también guarda las reglas (puntos de misiones y descuento por quebrar).
+- `trip_drinks`: la carta de tragos de cada viaje.
+- `trip_events`: todo lo que suma o resta puntos (tragos, misiones, quiebres, comodines).
+- `daily_missions`, `mission_catalog`: misión de cada jugador por jornada.
+- `player_cards`, `card_catalog`: comodines ganados en la ruleta.
 
 Las escrituras pasan por funciones (`add_friend_by_code`, `remove_friend`,
-`create_trip`) que validan todo del lado del servidor; con RLS cada usuario
+`create_trip`, `log_drink`, `choose_daily_mission`, `complete_daily_mission`,
+`report_quiebre`, `spin_roulette`, `redeem_card`) que validan todo del lado del servidor; con RLS cada usuario
 solo ve su perfil, sus amigos y los viajes en los que participa.
