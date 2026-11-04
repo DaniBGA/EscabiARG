@@ -39,6 +39,9 @@ Cuando la app esté lista para el público, ocultá la demo con `VITE_ENABLE_DEM
    1. `supabase/migrations/20261104000000_amigos_y_viajes.sql`
    2. `supabase/migrations/20261105000000_juego_del_viaje.sql` (también crea el
       bucket privado `trip-photos` de Storage para las fotos)
+   3. `supabase/migrations/20261106000000_validaciones_y_votaciones.sql`
+   4. `supabase/migrations/20261107000000_prendas_ruleta_casino.sql`
+   5. `supabase/migrations/20261108000000_duelos.sql`
 
    (o con la CLI: `supabase link` + `supabase db push`).
 3. **Login** (*Authentication → Sign In / Providers*):
@@ -82,14 +85,46 @@ Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
 
 - **Tragos con puntos**: el organizador arma la carta (nombre, ícono y puntos) y
   las reglas. Los demás solo la ven.
-- **Cargar trago**: elegís el trago y **sacás una foto en el momento** (se abre la
-  cámara). Fotos viejas se rechazan; el servidor además solo acepta fotos subidas
-  hace menos de 30 minutos y que no se hayan usado antes.
+- **Cargar trago**: elegís el trago y **sacás una foto con la cámara de la app**
+  (no se pueden subir fotos de la galería). El servidor además solo acepta fotos
+  subidas hace menos de 30 minutos y que no se hayan usado antes.
+- **Validación**: los tragos y quiebres quedan *pendientes* hasta que **más de la
+  mitad** del resto del grupo mira la foto y dice "vale" (no votan ni quien lo cargó
+  ni a quien afecta). Si ya no se puede llegar a esa mayoría, queda rechazado. En el
+  viaje aparece la sección **🔔 Pendientes** y en el inicio un aviso con la cantidad.
 - **Misión diaria**: cada jugador elige Fácil / Intermedia / Extrema y le toca una
-  misión al azar. Puntos por defecto: 10 / 25 / 50 (el organizador los cambia).
+  misión al azar (bien argentinas, algunas atrevidas pero sin nada peligroso).
+  Puntos por defecto: 10 / 25 / 50 (el organizador los cambia). Todos ven las
+  misiones de todos.
+- **Votar una misión mala**: cualquiera abre la votación sobre la misión de otro
+  (10 min). Si la mayoría dice que es mala, cada uno escribe una opción (3 min) y
+  después hay **60 segundos** para votar la mejor (no se vota la propia). La
+  ganadora pasa a ser la misión de ese jugador.
 - **Quiebre**: cualquiera del viaje reporta quién quebró con 1 a 3 fotos y se le
   restan puntos (30 por defecto).
-- **Puntaje diario y general**: la jornada va de **6:00 a 6:00 (hora Argentina)**.
+- **Puntaje diario y general**: solo cuentan los puntos validados. La jornada
+  termina a la hora que elige el organizador (por defecto **6:00, hora Argentina**).
+- **Galería**: todas las fotos del viaje (tragos, quebradas, misiones, casino,
+  cocina y prendas), con filtros.
+- **Infracciones y prendas**: cualquiera reporta una infracción ("Levantarse tarde",
+  "Terminar roto"…), con fotos opcionales. Si la valida la mayoría, al infractor le
+  toca una **prenda** al azar, que después marca como cumplida. Las listas vienen
+  sugeridas y el organizador las edita.
+- **¿Quién cocina? / ¿Quién prepara el trago?**: una ruleta que gira recién cuando
+  **se metieron todos**, y nunca le toca al mismo que la vez anterior. Cuando está
+  listo, el grupo vota: si salió bueno suma puntos (20 por defecto), si no, prenda.
+- **Casino**: se arranca con un temporizador y entran los que juegan. Al terminar,
+  cada uno carga cuánto ganó o perdió con **foto de las fichas o el ticket**; el
+  grupo lo valida y el que más ganó se lleva los puntos (30 por defecto). Hay 1 hora
+  para cargar los resultados.
+- **Duelos**: retás a alguien del viaje a **fondo blanco** (el reloj sube y gana el
+  que aprieta "¡Terminé!" en menos tiempo, dentro del máximo elegido) o a **shots**
+  (cuenta regresiva del tiempo elegido; gana el que toma más, y si empatan el que
+  llegó primero). Cuenta regresiva 3-2-1 sincronizada en los dos celulares. El
+  ganador suma 15 por defecto y el resto del grupo valida el resultado.
+  Para que siga siendo un juego: el retado tiene que aceptar (puede decir que no),
+  se cuentan **hasta 3 shots** por duelo, **hasta 3 duelos por persona por
+  jornada**, y siempre hay un botón "Me bajo" (perder o bajarse no resta puntos).
 - **Ruleta**: cuando termina una jornada, quien más sumó (si hay empate, todos los
   empatados) gira la ruleta una vez y gana una **carta comodín** para usar cuando quiera:
 
@@ -112,8 +147,20 @@ Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
 - `trip_events`: todo lo que suma o resta puntos (tragos, misiones, quiebres, comodines).
 - `daily_missions`, `mission_catalog`: misión de cada jugador por jornada.
 - `player_cards`, `card_catalog`: comodines ganados en la ruleta.
+- `event_votes`: validaciones de fotos de tragos y quiebres.
+- `mission_challenges`, `challenge_bad_votes`, `challenge_options`,
+  `challenge_option_votes`: votaciones de misiones.
+- `trip_infractions`, `trip_forfeits`, `player_forfeits`: infracciones y prendas.
+- `chef_spins`, `chef_spin_players`, `chef_votes`: ruleta de quién cocina.
+- `casino_sessions`, `casino_players`: casino con temporizador.
+- `duels`, `duel_results`: duelos de fondo blanco y shots.
 
 Las escrituras pasan por funciones (`add_friend_by_code`, `remove_friend`,
 `create_trip`, `log_drink`, `choose_daily_mission`, `complete_daily_mission`,
-`report_quiebre`, `spin_roulette`, `redeem_card`) que validan todo del lado del servidor; con RLS cada usuario
+`report_quiebre`, `spin_roulette`, `redeem_card`, `vote_event`,
+`start_mission_challenge`, `vote_mission_bad`, `propose_mission_option`,
+`start_option_vote`, `vote_mission_option`, `report_infraction`, `complete_forfeit`,
+`start_chef_spin`, `join_chef_spin`, `chef_ready`, `vote_chef`, `start_casino`,
+`join_casino`, `report_casino`, `challenge_duel`, `respond_duel`, `duel_action`)
+que validan todo del lado del servidor; con RLS cada usuario
 solo ve su perfil, sus amigos y los viajes en los que participa.

@@ -125,3 +125,13 @@
 .trip-card .trip-name {
   padding-right: 70px;
 }
+
+.trip-pending {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #ffd56b;
+  color: #2a1606;
+  font-size: 0.8rem;
+  font-weight: 800;
+}

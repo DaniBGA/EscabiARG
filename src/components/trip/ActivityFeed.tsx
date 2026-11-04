@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { TripEvent, TripMember } from '../../lib/api'
+import type { TripDetail, TripEvent, TripMember } from '../../lib/api'
 import { useApi } from '../../lib/authContext'
-import { formatDay, formatPoints, formatTime } from '../../lib/game'
+import { eventTally, formatDay, formatPoints, formatTime } from '../../lib/game'
 import Sheet from '../Sheet'
 
 type Props = {
   events: TripEvent[]
+  eventVotes: TripDetail['eventVotes']
   members: TripMember[]
   userId: string
   today: string
@@ -13,7 +14,7 @@ type Props = {
 
 const MAX_EVENTS = 80
 
-export default function ActivityFeed({ events, members, userId, today }: Props) {
+export default function ActivityFeed({ events, eventVotes, members, userId, today }: Props) {
   const api = useApi()
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [viewing, setViewing] = useState<string | null>(null)
@@ -61,10 +62,14 @@ export default function ActivityFeed({ events, members, userId, today }: Props) 
                 <div className="feed-body">
                   <p className="feed-line">
                     <strong>{name(e.user_id)}</strong>{' '}
-                    {e.kind === 'drink' ? `· ${e.title}` : e.kind === 'quiebre' ? e.title.toLowerCase() : `· ${e.title}`}
+                    {e.kind === 'quiebre'
+                      ? e.title.toLowerCase()
+                      : e.kind === 'infraction'
+                        ? `· infracción: ${e.title}`
+                        : `· ${e.title}`}
                   </p>
-                  {e.detail && <p className="feed-detail">“{e.detail}”</p>}
-                  {e.kind === 'quiebre' && e.actor_id !== e.user_id && (
+                  {e.detail && <p className="feed-detail">{e.kind === 'duel' ? `contra ${name(e.actor_id)} · ${e.detail}` : `“${e.detail}”`}</p>}
+                  {(e.kind === 'quiebre' || e.kind === 'infraction') && e.actor_id !== e.user_id && (
                     <p className="feed-detail">Lo reportó {name(e.actor_id)}</p>
                   )}
                   {e.photo_paths.length > 0 && (
@@ -80,9 +85,16 @@ export default function ActivityFeed({ events, members, userId, today }: Props) 
                       )}
                     </div>
                   )}
-                  <span className="feed-time">{formatTime(e.created_at)}</span>
+                  <span className="feed-time">
+                    {formatTime(e.created_at)}
+                    {e.status === 'pending' && (() => {
+                      const t = eventTally(e, { eventVotes }, members)
+                      return <span className="status-chip is-pending">⏳ Esperando validación ({t.yes}/{t.needed})</span>
+                    })()}
+                    {e.status === 'rejected' && <span className="status-chip is-rejected">❌ No validado</span>}
+                  </span>
                 </div>
-                <span className={`pts-chip${e.points < 0 ? ' is-neg' : e.points === 0 ? ' is-zero' : ''}`}>
+                <span className={`pts-chip${e.status !== 'approved' ? ' is-off' : ''}${e.points < 0 ? ' is-neg' : e.points === 0 ? ' is-zero' : ''}`}>
                   {formatPoints(e.points)}
                 </span>
               </li>

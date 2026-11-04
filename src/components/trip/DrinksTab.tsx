@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { Drink, DrinkInput, TripRules } from '../../lib/api'
 import { useApi } from '../../lib/authContext'
 import { friendlyError } from '../../lib/errors'
+import { formatHour } from '../../lib/game'
 import { EditIcon, TrashIcon } from '../icons'
 
 type Props = {
@@ -23,11 +24,16 @@ const SUGGESTED: DrinkInput[] = [
   { name: 'Vaso de agua', emoji: '💧', points: 2 },
 ]
 
-const RULE_FIELDS: { key: keyof TripRules; label: string }[] = [
+type PointRule = Exclude<keyof TripRules, 'day_cutoff_hour'>
+
+const RULE_FIELDS: { key: PointRule; label: string }[] = [
   { key: 'mission_points_easy', label: '🎯 Misión fácil' },
   { key: 'mission_points_medium', label: '🔥 Misión intermedia' },
   { key: 'mission_points_extreme', label: '💀 Misión extrema' },
   { key: 'quiebre_penalty', label: '😵 Descuento por quebrar' },
+  { key: 'chef_points', label: '👨‍🍳 Cocinar o preparar bien' },
+  { key: 'casino_points', label: '🎰 Ganar el casino' },
+  { key: 'duel_points', label: '⚔️ Ganar un duelo' },
 ]
 
 function DrinkForm({ initial, onSave, onCancel }: {
@@ -108,12 +114,16 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
   const api = useApi()
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [ruleDraft, setRuleDraft] = useState<Record<keyof TripRules, string>>(() => ({
+  const [ruleDraft, setRuleDraft] = useState<Record<PointRule, string>>(() => ({
     mission_points_easy: String(rules.mission_points_easy),
     mission_points_medium: String(rules.mission_points_medium),
     mission_points_extreme: String(rules.mission_points_extreme),
     quiebre_penalty: String(rules.quiebre_penalty),
+    chef_points: String(rules.chef_points),
+    casino_points: String(rules.casino_points),
+    duel_points: String(rules.duel_points),
   }))
+  const [cutoff, setCutoff] = useState(rules.day_cutoff_hour)
   const [savingRules, setSavingRules] = useState(false)
 
   const run = async (fn: () => Promise<void>, message?: string) => {
@@ -142,14 +152,16 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
       for (const d of SUGGESTED) await api.saveDrink(tripId, d)
     }, 'Carta sugerida cargada 🍻').catch(() => undefined)
 
-  const parsedRules = Object.fromEntries(
-    RULE_FIELDS.map((f) => [f.key, Number(ruleDraft[f.key])]),
-  ) as TripRules
+  const parsedRules = {
+    ...(Object.fromEntries(RULE_FIELDS.map((f) => [f.key, Number(ruleDraft[f.key])])) as Record<PointRule, number>),
+    day_cutoff_hour: cutoff,
+  } satisfies TripRules
   const rulesValid = RULE_FIELDS.every((f) => {
     const v = parsedRules[f.key]
     return Number.isInteger(v) && v >= 0 && v <= 500
   })
-  const rulesChanged = RULE_FIELDS.some((f) => parsedRules[f.key] !== rules[f.key])
+  const rulesChanged =
+    RULE_FIELDS.some((f) => parsedRules[f.key] !== rules[f.key]) || cutoff !== rules.day_cutoff_hour
 
   const saveRules = async (e: FormEvent) => {
     e.preventDefault()
@@ -227,6 +239,17 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
                 />
               </label>
             ))}
+            <label className="rule-row">
+              <span>🌅 Fin de la jornada</span>
+              <select value={cutoff} onChange={(e) => setCutoff(Number(e.target.value))}>
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>{formatHour(h)}</option>
+                ))}
+              </select>
+            </label>
+            <p className="muted small">
+              A esa hora (de Argentina) cierra el día: se define el ganador y arranca la jornada siguiente.
+            </p>
             <button type="submit" className="btn btn--primary btn--block" disabled={savingRules || !rulesValid || !rulesChanged}>
               Guardar reglas
             </button>
@@ -239,6 +262,10 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
                 <strong>{f.key === 'quiebre_penalty' ? `-${rules[f.key]}` : `+${rules[f.key]}`}</strong>
               </li>
             ))}
+            <li>
+              <span>🌅 Fin de la jornada</span>
+              <strong>{formatHour(rules.day_cutoff_hour)} hs</strong>
+            </li>
           </ul>
         )}
       </section>

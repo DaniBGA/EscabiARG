@@ -1,33 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { isFreshPhoto } from '../../lib/photos'
-import { friendlyError } from '../../lib/errors'
+import { useEffect, useMemo, useState } from 'react'
 import { CameraIcon, CloseIcon } from '../icons'
+import CameraCapture from './CameraCapture'
 
 type Props = {
-  files: File[]
-  onChange: (files: File[]) => void
+  photos: Blob[]
+  onChange: (photos: Blob[]) => void
   /** Cantidad máxima de fotos */
   max?: number
   label?: string
 }
 
-/** Abre la cámara (en el celu) y muestra la vista previa de las fotos */
-export default function PhotoPicker({ files, onChange, max = 1, label = 'Sacar foto' }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [error, setError] = useState<string | null>(null)
-  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files])
+/** Fotos sacadas con la cámara de la app (sin galería) + vista previa */
+export default function PhotoPicker({ photos, onChange, max = 1, label = 'Sacar foto' }: Props) {
+  const [camera, setCamera] = useState(false)
+  const previews = useMemo(() => photos.map((p) => URL.createObjectURL(p)), [photos])
   useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews])
-
-  const pick = (list: FileList | null) => {
-    setError(null)
-    const picked = Array.from(list ?? []).filter((f) => f.type.startsWith('image/'))
-    if (picked.length === 0) return
-    if (picked.some((f) => !isFreshPhoto(f))) {
-      setError(friendlyError('PHOTO_TOO_OLD'))
-      return
-    }
-    onChange(max === 1 ? picked.slice(0, 1) : [...files, ...picked].slice(0, max))
-  }
 
   return (
     <div className="photo-picker">
@@ -40,7 +27,7 @@ export default function PhotoPicker({ files, onChange, max = 1, label = 'Sacar f
                 type="button"
                 className="photo-remove"
                 aria-label="Sacar esta foto"
-                onClick={() => onChange(files.filter((_, j) => j !== i))}
+                onClick={() => onChange(photos.filter((_, j) => j !== i))}
               >
                 <CloseIcon size={16} />
               </button>
@@ -49,27 +36,20 @@ export default function PhotoPicker({ files, onChange, max = 1, label = 'Sacar f
         </div>
       )}
 
-      {files.length < max && (
-        <button type="button" className="photo-take" onClick={() => inputRef.current?.click()}>
+      {photos.length < max && (
+        <button type="button" className="photo-take" onClick={() => setCamera(true)}>
           <CameraIcon />
-          <span>{files.length === 0 ? label : 'Agregar otra foto'}</span>
-          {max > 1 && <small>{files.length}/{max}</small>}
+          <span>{photos.length === 0 ? label : 'Sacar otra foto'}</span>
+          {max > 1 && <small>{photos.length}/{max}</small>}
         </button>
       )}
+      <p className="photo-note">📸 Solo con la cámara, en el momento. No se pueden subir fotos de la galería.</p>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        multiple={max > 1}
-        hidden
-        onChange={(e) => {
-          pick(e.target.files)
-          e.target.value = ''
-        }}
+      <CameraCapture
+        open={camera}
+        onClose={() => setCamera(false)}
+        onCapture={(blob) => onChange(max === 1 ? [blob] : [...photos, blob].slice(0, max))}
       />
-      {error && <p className="notice notice--error" role="alert">{error}</p>}
     </div>
   )
 }

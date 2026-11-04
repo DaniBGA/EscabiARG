@@ -23,7 +23,7 @@ export default function LogDrinkSheet(props: Props) {
   const { open, onClose, tripId, userId, drinks, doubleActive, isOwner, onDone, onGoToDrinks } = props
   const api = useApi()
   const [drinkId, setDrinkId] = useState<string | null>(null)
-  const [files, setFiles] = useState<File[]>([])
+  const [photos, setPhotos] = useState<Blob[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,20 +32,20 @@ export default function LogDrinkSheet(props: Props) {
 
   const close = () => {
     setDrinkId(null)
-    setFiles([])
+    setPhotos([])
     setError(null)
     onClose()
   }
 
   const submit = async () => {
-    if (!drink || files.length === 0) return
+    if (!drink || photos.length === 0) return
     setBusy(true)
     setError(null)
     try {
-      const [path] = await uploadPhotos(api, tripId, userId, files)
+      const [path] = await uploadPhotos(api, tripId, userId, photos)
       await api.logDrink(tripId, drink.id, path)
       close()
-      onDone(`${drink.emoji} ¡+${points} puntos por ${drink.name}!`)
+      onDone(`${drink.emoji} ¡Cargado! Cuando la mayoría lo valide suma +${points}`)
     } catch (err) {
       setError(friendlyError(err))
     } finally {
@@ -90,7 +90,8 @@ export default function LogDrinkSheet(props: Props) {
 
           <div>
             <p className="step-label">2. Sacale una foto ahora</p>
-            <PhotoPicker files={files} onChange={setFiles} label="Abrir cámara" />
+            <PhotoPicker photos={photos} onChange={setPhotos} label="Abrir cámara" />
+            <p className="muted small">Tus amigos ven la foto y la validan. Suma cuando la aprueba la mayoría.</p>
           </div>
 
           {error && <p className="notice notice--error" role="alert">{error}</p>}
@@ -98,7 +99,7 @@ export default function LogDrinkSheet(props: Props) {
           <button
             type="button"
             className="btn btn--primary btn--block"
-            disabled={busy || !drink || files.length === 0}
+            disabled={busy || !drink || photos.length === 0}
             onClick={submit}
           >
             {busy ? 'Subiendo…' : drink ? `Cargar ${drink.name} (+${points})` : 'Elegí un trago'}

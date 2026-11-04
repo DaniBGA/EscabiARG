@@ -26,6 +26,14 @@ export default function Home({ user }: { user: AppUser }) {
   const loadProfile = useCallback(async () => setMe(await api.getMyProfile(userId)), [api, userId])
   const loadFriends = useCallback(async () => setFriends(await api.listFriends(userId)), [api, userId])
   const loadTrips = useCallback(async () => setTrips(await api.listTrips()), [api])
+  const [pending, setPending] = useState<Record<string, number>>({})
+  const loadPending = useCallback(async () => {
+    try {
+      setPending(await api.pendingCounts())
+    } catch {
+      // los avisos no son críticos
+    }
+  }, [api])
 
   const loadAll = useCallback(async () => {
     try {
@@ -37,7 +45,14 @@ export default function Home({ user }: { user: AppUser }) {
 
   useEffect(() => {
     loadAll()
-  }, [loadAll])
+    loadPending()
+    const id = window.setInterval(() => {
+      if (!document.hidden) loadPending()
+    }, 30_000)
+    return () => window.clearInterval(id)
+  }, [loadAll, loadPending])
+
+  const totalPending = Object.values(pending).reduce((a, b) => a + b, 0)
 
   const safely = (fn: () => Promise<void>) => () => {
     fn().catch((err) => setError(friendlyError(err)))
@@ -102,6 +117,18 @@ export default function Home({ user }: { user: AppUser }) {
 
         <p className="home-greeting">¡Hola, {me.display_name}! 🍻</p>
 
+        {totalPending > 0 && trips && (
+          <div className="home-pending" role="status">
+            <strong>🔔 Tenés {totalPending} {totalPending === 1 ? 'cosa' : 'cosas'} para validar o votar</strong>
+            <span>
+              {trips
+                .filter((t) => pending[t.id])
+                .map((t) => `${t.name} (${pending[t.id]})`)
+                .join(' · ')}
+            </span>
+          </div>
+        )}
+
         <button type="button" className="create-trip" onClick={() => setPanel('create')}>
           <span className="create-trip-icon"><PlusIcon size={28} /></span>
           <span className="create-trip-text">
@@ -126,7 +153,7 @@ export default function Home({ user }: { user: AppUser }) {
             <ul className="trips-list">
               {trips.map((t) => (
                 <li key={t.id}>
-                  <TripCard trip={t} myId={me.id} />
+                  <TripCard trip={t} myId={me.id} pending={pending[t.id] ?? 0} />
                 </li>
               ))}
             </ul>

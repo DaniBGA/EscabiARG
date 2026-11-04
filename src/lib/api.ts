@@ -40,7 +40,17 @@ export type TripRules = {
   mission_points_medium: number
   mission_points_extreme: number
   quiebre_penalty: number
+  /** Hora (0-23, Argentina) en que termina la jornada */
+  day_cutoff_hour: number
+  /** Puntos al que le toca cocinar / preparar el trago y sale bueno */
+  chef_points: number
+  /** Puntos para quien más gana en el casino */
+  casino_points: number
+  /** Puntos para el ganador de un duelo */
+  duel_points: number
 }
+
+export type EventStatus = 'pending' | 'approved' | 'rejected'
 
 export type Drink = {
   id: string
@@ -57,7 +67,7 @@ export type TripEvent = {
   trip_id: string
   user_id: string
   actor_id: string
-  kind: 'drink' | 'mission' | 'quiebre' | 'card'
+  kind: 'drink' | 'mission' | 'quiebre' | 'card' | 'infraction' | 'chef' | 'casino' | 'forfeit' | 'duel'
   points: number
   day: string
   title: string
@@ -65,7 +75,122 @@ export type TripEvent = {
   detail: string | null
   photo_paths: string[]
   created_at: string
+  status: EventStatus
+  ref_id?: string | null
 }
+
+// ---------- Infracciones, prendas, ruleta de cocinero y casino ----------
+
+export type Infraction = { id: string; trip_id: string; name: string; emoji: string }
+export type Forfeit = { id: string; trip_id: string; text: string }
+
+export type PlayerForfeit = {
+  id: string
+  trip_id: string
+  user_id: string
+  source: 'infraction' | 'chef'
+  reason: string
+  forfeit: string
+  status: 'to_do' | 'done'
+  created_at: string
+  done_at: string | null
+}
+
+export type ChefKind = 'comida' | 'trago'
+
+export type ChefSpin = {
+  id: string
+  trip_id: string
+  kind: ChefKind
+  started_by: string
+  status: 'joining' | 'cooking' | 'voting' | 'good' | 'bad' | 'cancelled'
+  chosen_user_id: string | null
+  excluded_user_id: string | null
+  photo_path: string | null
+  created_at: string
+  spun_at: string | null
+}
+
+export type ChefSpinPlayer = { spin_id: string; user_id: string }
+export type ChefVote = { spin_id: string; voter_id: string; good: boolean }
+
+export type CasinoSession = {
+  id: string
+  trip_id: string
+  started_by: string
+  minutes: number
+  prize: number
+  status: 'running' | 'reporting' | 'done' | 'cancelled'
+  starts_at: string
+  ends_at: string
+  report_until: string
+  created_at: string
+}
+
+export type DuelKind = 'fondo' | 'shots'
+
+export type Duel = {
+  id: string
+  trip_id: string
+  kind: DuelKind
+  challenger_id: string
+  opponent_id: string
+  seconds: number
+  status: 'invited' | 'declined' | 'live' | 'done' | 'cancelled'
+  day: string
+  created_at: string
+  starts_at: string | null
+  ends_at: string | null
+  winner_id: string | null
+  event_id: string | null
+}
+
+export type DuelResult = {
+  duel_id: string
+  user_id: string
+  finished_at: string | null
+  shots: number
+  last_shot_at: string | null
+  gave_up: boolean
+}
+
+export type CasinoPlayer = {
+  session_id: string
+  user_id: string
+  amount: number | null
+  event_id: string | null
+  reported_at: string | null
+}
+
+export type EventVote = { event_id: string; voter_id: string; valid: boolean }
+
+export type ChallengePhase = 'vote_bad' | 'proposals' | 'vote_option' | 'replaced' | 'kept'
+
+export type MissionChallenge = {
+  id: string
+  trip_id: string
+  mission_id: string
+  target_user_id: string
+  started_by: string
+  phase: ChallengePhase
+  bad_until: string
+  proposals_until: string | null
+  voting_until: string | null
+  winner_option_id: string | null
+  created_at: string
+}
+
+export type ChallengeBadVote = { challenge_id: string; voter_id: string; bad: boolean }
+
+export type ChallengeOption = {
+  id: string
+  challenge_id: string
+  author_id: string
+  text: string
+  created_at: string
+}
+
+export type ChallengeOptionVote = { challenge_id: string; voter_id: string; option_id: string }
 
 export type DailyMission = {
   id: string
@@ -77,6 +202,7 @@ export type DailyMission = {
   points: number
   completed_at: string | null
   photo_path: string | null
+  group_assigned: boolean
 }
 
 export type PlayerCard = {
@@ -96,6 +222,23 @@ export type TripDetail = {
   events: TripEvent[]
   missions: DailyMission[]
   cards: PlayerCard[]
+  eventVotes: EventVote[]
+  challenges: MissionChallenge[]
+  badVotes: ChallengeBadVote[]
+  options: ChallengeOption[]
+  optionVotes: ChallengeOptionVote[]
+  infractions: Infraction[]
+  forfeits: Forfeit[]
+  playerForfeits: PlayerForfeit[]
+  chefSpins: ChefSpin[]
+  chefPlayers: ChefSpinPlayer[]
+  chefVotes: ChefVote[]
+  casinoSessions: CasinoSession[]
+  casinoPlayers: CasinoPlayer[]
+  duels: Duel[]
+  duelResults: DuelResult[]
+  /** Hora del servidor al leer (para sincronizar cuentas regresivas) */
+  serverTime: string
 }
 
 /** Operaciones de datos de la app (implementadas con Supabase o con la demo local) */
@@ -120,6 +263,35 @@ export type Api = {
   reportQuiebre(tripId: string, userId: string, photoPaths: string[]): Promise<void>
   spinRoulette(tripId: string, day: string): Promise<CardKey>
   redeemCard(cardId: string, targetId: string | null): Promise<void>
+
+  voteEvent(eventId: string, valid: boolean): Promise<void>
+  startMissionChallenge(missionId: string): Promise<void>
+  voteMissionBad(challengeId: string, bad: boolean): Promise<void>
+  proposeMissionOption(challengeId: string, text: string): Promise<void>
+  startOptionVote(challengeId: string): Promise<void>
+  voteMissionOption(challengeId: string, optionId: string): Promise<void>
+  /** Cosas que esperan tu voto, por viaje */
+  pendingCounts(): Promise<Record<string, number>>
+
+  saveInfraction(tripId: string, item: { id?: string; name: string; emoji: string }): Promise<void>
+  archiveInfraction(id: string): Promise<void>
+  saveForfeit(tripId: string, item: { id?: string; text: string }): Promise<void>
+  archiveForfeit(id: string): Promise<void>
+  reportInfraction(tripId: string, userId: string, infractionId: string, photoPaths: string[]): Promise<void>
+  completeForfeit(forfeitId: string, photoPath: string | null): Promise<void>
+  startChefSpin(tripId: string, kind: ChefKind): Promise<void>
+  joinChefSpin(spinId: string): Promise<void>
+  cancelChefSpin(spinId: string): Promise<void>
+  chefReady(spinId: string, photoPath: string | null): Promise<void>
+  voteChef(spinId: string, good: boolean): Promise<void>
+  startCasino(tripId: string, minutes: number): Promise<void>
+  joinCasino(sessionId: string): Promise<void>
+  cancelCasino(sessionId: string): Promise<void>
+  reportCasino(sessionId: string, amount: number, photoPath: string): Promise<void>
+  challengeDuel(tripId: string, opponentId: string, kind: DuelKind, seconds: number): Promise<void>
+  respondDuel(duelId: string, accept: boolean): Promise<void>
+  duelAction(duelId: string, action: 'finish' | 'shot' | 'give_up'): Promise<void>
+  cancelDuel(duelId: string): Promise<void>
 }
 
 /** Lanza un Error con el mensaje de Supabase (los RPC usan códigos tipo FRIEND_IS_SELF) */
@@ -197,11 +369,17 @@ async function createTrip(trip: NewTrip): Promise<string> {
 const PHOTO_BUCKET = 'trip-photos'
 
 const TRIP_COLUMNS =
-  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, members:trip_members(user_id, role, profile:profiles(id, display_name))'
+  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, chef_points, casino_points, duel_points, members:trip_members(user_id, role, profile:profiles(id, display_name))'
 
 async function getTrip(tripId: string): Promise<TripDetail> {
   const sb = requireSupabase()
-  const [trip, drinks, events, missions, cards] = await Promise.all([
+  // Cierra votaciones vencidas antes de leer
+  check(await sb.rpc('tick_trip', { p_trip: tripId }))
+  const [
+    trip, drinks, events, missions, cards, eventVotes, challenges, badVotes, options, optionVotes,
+    infractions, forfeits, playerForfeits, chefSpins, chefPlayers, chefVotes, casinoSessions, casinoPlayers,
+    duels, duelResults, serverTime,
+  ] = await Promise.all([
     sb.from('trips').select(TRIP_COLUMNS).eq('id', tripId).single(),
     sb
       .from('trip_drinks')
@@ -211,18 +389,57 @@ async function getTrip(tripId: string): Promise<TripDetail> {
       .order('points'),
     sb
       .from('trip_events')
-      .select('id, trip_id, user_id, actor_id, kind, points, day, title, emoji, detail, photo_paths, created_at')
+      .select('id, trip_id, user_id, actor_id, kind, points, day, title, emoji, detail, photo_paths, created_at, status, ref_id')
       .eq('trip_id', tripId)
       .order('created_at', { ascending: false }),
     sb
       .from('daily_missions')
-      .select('id, trip_id, user_id, day, difficulty, mission, points, completed_at, photo_path')
+      .select('id, trip_id, user_id, day, difficulty, mission, points, completed_at, photo_path, group_assigned')
       .eq('trip_id', tripId),
     sb
       .from('player_cards')
       .select('id, trip_id, user_id, card_key, won_day, status, target_user_id, created_at')
       .eq('trip_id', tripId)
       .order('created_at'),
+    sb.from('event_votes').select('event_id, voter_id, valid').eq('trip_id', tripId),
+    sb
+      .from('mission_challenges')
+      .select('id, trip_id, mission_id, target_user_id, started_by, phase, bad_until, proposals_until, voting_until, winner_option_id, created_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false }),
+    sb.from('challenge_bad_votes').select('challenge_id, voter_id, bad').eq('trip_id', tripId),
+    sb.from('challenge_options').select('id, challenge_id, author_id, text, created_at').eq('trip_id', tripId).order('created_at'),
+    sb.from('challenge_option_votes').select('challenge_id, voter_id, option_id').eq('trip_id', tripId),
+    sb.from('trip_infractions').select('id, trip_id, name, emoji').eq('trip_id', tripId).eq('archived', false).order('created_at'),
+    sb.from('trip_forfeits').select('id, trip_id, text').eq('trip_id', tripId).eq('archived', false).order('created_at'),
+    sb
+      .from('player_forfeits')
+      .select('id, trip_id, user_id, source, reason, forfeit, status, created_at, done_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false }),
+    sb
+      .from('chef_spins')
+      .select('id, trip_id, kind, started_by, status, chosen_user_id, excluded_user_id, photo_path, created_at, spun_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    sb.from('chef_spin_players').select('spin_id, user_id').eq('trip_id', tripId),
+    sb.from('chef_votes').select('spin_id, voter_id, good').eq('trip_id', tripId),
+    sb
+      .from('casino_sessions')
+      .select('id, trip_id, started_by, minutes, prize, status, starts_at, ends_at, report_until, created_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    sb.from('casino_players').select('session_id, user_id, amount, event_id, reported_at').eq('trip_id', tripId),
+    sb
+      .from('duels')
+      .select('id, trip_id, kind, challenger_id, opponent_id, seconds, status, day, created_at, starts_at, ends_at, winner_id, event_id')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false })
+      .limit(30),
+    sb.from('duel_results').select('duel_id, user_id, finished_at, shots, last_shot_at, gave_up').eq('trip_id', tripId),
+    sb.rpc('server_time'),
   ])
   return {
     trip: check(trip) as unknown as TripDetail['trip'],
@@ -230,7 +447,35 @@ async function getTrip(tripId: string): Promise<TripDetail> {
     events: check(events) as TripEvent[],
     missions: check(missions) as DailyMission[],
     cards: check(cards) as PlayerCard[],
+    eventVotes: check(eventVotes) as EventVote[],
+    challenges: check(challenges) as MissionChallenge[],
+    badVotes: check(badVotes) as ChallengeBadVote[],
+    options: check(options) as ChallengeOption[],
+    optionVotes: check(optionVotes) as ChallengeOptionVote[],
+    infractions: check(infractions) as Infraction[],
+    forfeits: check(forfeits) as Forfeit[],
+    playerForfeits: check(playerForfeits) as PlayerForfeit[],
+    chefSpins: check(chefSpins) as ChefSpin[],
+    chefPlayers: check(chefPlayers) as ChefSpinPlayer[],
+    chefVotes: check(chefVotes) as ChefVote[],
+    casinoSessions: check(casinoSessions) as CasinoSession[],
+    casinoPlayers: check(casinoPlayers) as CasinoPlayer[],
+    duels: check(duels) as Duel[],
+    duelResults: check(duelResults) as DuelResult[],
+    serverTime: (check(serverTime) as string) ?? new Date().toISOString(),
   }
+}
+
+async function saveListItem(table: 'trip_infractions' | 'trip_forfeits', tripId: string, row: Record<string, unknown> & { id?: string }) {
+  const sb = requireSupabase()
+  const { id, ...values } = row
+  if (id) check(await sb.from(table).update(values).eq('id', id))
+  else check(await sb.from(table).insert({ ...values, trip_id: tripId }))
+}
+
+async function archiveListItem(table: 'trip_infractions' | 'trip_forfeits', id: string) {
+  const sb = requireSupabase()
+  check(await sb.from(table).update({ archived: true }).eq('id', id))
 }
 
 async function saveDrink(tripId: string, drink: DrinkInput) {
@@ -323,5 +568,76 @@ export const supabaseApi: Api = {
   },
   async redeemCard(cardId, targetId) {
     await rpc('redeem_card', { p_card: cardId, p_target: targetId })
+  },
+  async voteEvent(eventId, valid) {
+    await rpc('vote_event', { p_event: eventId, p_valid: valid })
+  },
+  async startMissionChallenge(missionId) {
+    await rpc('start_mission_challenge', { p_mission: missionId })
+  },
+  async voteMissionBad(challengeId, bad) {
+    await rpc('vote_mission_bad', { p_challenge: challengeId, p_bad: bad })
+  },
+  async proposeMissionOption(challengeId, text) {
+    await rpc('propose_mission_option', { p_challenge: challengeId, p_text: text })
+  },
+  async startOptionVote(challengeId) {
+    await rpc('start_option_vote', { p_challenge: challengeId })
+  },
+  async voteMissionOption(challengeId, optionId) {
+    await rpc('vote_mission_option', { p_challenge: challengeId, p_option: optionId })
+  },
+  async pendingCounts() {
+    const rows = (await rpc('my_pending', {})) as { trip_id: string; pending: number }[]
+    return Object.fromEntries(rows.map((r) => [r.trip_id, Number(r.pending)]))
+  },
+  saveInfraction: (tripId, item) => saveListItem('trip_infractions', tripId, { ...item, name: item.name.trim() }),
+  archiveInfraction: (id) => archiveListItem('trip_infractions', id),
+  saveForfeit: (tripId, item) => saveListItem('trip_forfeits', tripId, { ...item, text: item.text.trim() }),
+  archiveForfeit: (id) => archiveListItem('trip_forfeits', id),
+  async reportInfraction(tripId, userId, infractionId, photoPaths) {
+    await rpc('report_infraction', { p_trip: tripId, p_user: userId, p_infraction: infractionId, p_photos: photoPaths })
+  },
+  async completeForfeit(forfeitId, photoPath) {
+    await rpc('complete_forfeit', { p_forfeit: forfeitId, p_photo: photoPath })
+  },
+  async startChefSpin(tripId, kind) {
+    await rpc('start_chef_spin', { p_trip: tripId, p_kind: kind })
+  },
+  async joinChefSpin(spinId) {
+    await rpc('join_chef_spin', { p_spin: spinId })
+  },
+  async cancelChefSpin(spinId) {
+    await rpc('cancel_chef_spin', { p_spin: spinId })
+  },
+  async chefReady(spinId, photoPath) {
+    await rpc('chef_ready', { p_spin: spinId, p_photo: photoPath })
+  },
+  async voteChef(spinId, good) {
+    await rpc('vote_chef', { p_spin: spinId, p_good: good })
+  },
+  async startCasino(tripId, minutes) {
+    await rpc('start_casino', { p_trip: tripId, p_minutes: minutes })
+  },
+  async joinCasino(sessionId) {
+    await rpc('join_casino', { p_session: sessionId })
+  },
+  async cancelCasino(sessionId) {
+    await rpc('cancel_casino', { p_session: sessionId })
+  },
+  async reportCasino(sessionId, amount, photoPath) {
+    await rpc('report_casino', { p_session: sessionId, p_amount: amount, p_photo: photoPath })
+  },
+  async challengeDuel(tripId, opponentId, kind, seconds) {
+    await rpc('challenge_duel', { p_trip: tripId, p_opponent: opponentId, p_kind: kind, p_seconds: seconds })
+  },
+  async respondDuel(duelId, accept) {
+    await rpc('respond_duel', { p_duel: duelId, p_accept: accept })
+  },
+  async duelAction(duelId, action) {
+    await rpc('duel_action', { p_duel: duelId, p_action: action })
+  },
+  async cancelDuel(duelId) {
+    await rpc('cancel_duel', { p_duel: duelId })
   },
 }
