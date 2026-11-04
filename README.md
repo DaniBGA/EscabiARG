@@ -42,6 +42,7 @@ Cuando la app esté lista para el público, ocultá la demo con `VITE_ENABLE_DEM
    3. `supabase/migrations/20261106000000_validaciones_y_votaciones.sql`
    4. `supabase/migrations/20261107000000_prendas_ruleta_casino.sql`
    5. `supabase/migrations/20261108000000_duelos.sql`
+   6. `supabase/migrations/20261109000000_previa_y_salida.sql`
 
    (o con la CLI: `supabase link` + `supabase db push`).
 3. **Login** (*Authentication → Sign In / Providers*):
@@ -69,6 +70,14 @@ Conectá el repo en Netlify; toma automáticamente `netlify.toml`
 (build `npm run build`, publica `dist`). Cargá las mismas variables de entorno en
 *Site configuration → Environment variables* y volvé a deployar.
 
+## Estilo
+
+La interfaz tiene onda de bar argentino: pizarrón con tiza para la tabla y la carta,
+comandas de papel para lo que hay que validar, entradas con talón para cada plan,
+sellos de goma, polaroids en la galería y carteles pintados para cada sección
+(tipografías Alfa Slab One, Caveat Brush y Barlow). La pantalla de carga mantiene
+su estilo original.
+
 ## Qué hay hasta ahora
 
 - **Pantalla de carga**: un vaso de cerveza dibujado en `<canvas>` que llena toda la
@@ -78,6 +87,15 @@ Conectá el repo en Netlify; toma automáticamente `netlify.toml`
 - **Login**: email + contraseña, invitado (anónimo), Google opcional y modo demo.
 - **Inicio**: logo arriba, botón de **amigos** (tu código + agregar por código),
   **Crear viaje** (nombre, fecha, lugar e invitar amigos) y la lista de **tus viajes**.
+
+### Previa y salida
+
+Además de los viajes, en el inicio se puede armar una **Previa y salida**: tiene todo
+lo mismo que un viaje pero dura **una sola jornada** (la del día elegido, por defecto
+hoy). Antes de ese día se ve pero no se puede jugar; ese día se juega todo igual con
+un único puntaje, "de la noche"; cuando termina la jornada queda cerrada con el
+podio (se pueden seguir validando fotos, cumpliendo prendas y viendo la galería).
+En las salidas no hay ruleta de comodines, porque se gira recién al terminar el día.
 
 ### Pantalla del viaje
 
@@ -101,7 +119,8 @@ Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
   después hay **60 segundos** para votar la mejor (no se vota la propia). La
   ganadora pasa a ser la misión de ese jugador.
 - **Quiebre**: cualquiera del viaje reporta quién quebró con 1 a 3 fotos y se le
-  restan puntos (30 por defecto).
+  restan puntos (30 por defecto). Si estás en la app cuando alguien quiebra, aparece
+  una animación a pantalla completa (se puede repetir desde la actividad).
 - **Puntaje diario y general**: solo cuentan los puntos validados. La jornada
   termina a la hora que elige el organizador (por defecto **6:00, hora Argentina**).
 - **Galería**: todas las fotos del viaje (tragos, quebradas, misiones, casino,

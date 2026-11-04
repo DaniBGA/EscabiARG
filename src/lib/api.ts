@@ -12,6 +12,9 @@ export type TripMember = {
   profile: Pick<Profile, 'id' | 'display_name'> | null
 }
 
+/** 'viaje' dura varios días; 'salida' (previa y salida) dura una sola jornada */
+export type TripKind = 'viaje' | 'salida'
+
 export type Trip = {
   id: string
   owner_id: string
@@ -19,6 +22,8 @@ export type Trip = {
   trip_date: string | null
   place: string | null
   created_at: string
+  kind: TripKind
+  day_cutoff_hour?: number
   members: TripMember[]
 }
 
@@ -27,6 +32,7 @@ export type NewTrip = {
   tripDate: string | null
   place: string | null
   memberIds: string[]
+  kind: TripKind
 }
 
 // ---------- Juego del viaje ----------
@@ -345,7 +351,7 @@ async function listTrips(): Promise<Trip[]> {
     await sb
       .from('trips')
       .select(
-        'id, owner_id, name, trip_date, place, created_at, members:trip_members(user_id, role, profile:profiles(id, display_name))',
+        'id, owner_id, name, trip_date, place, created_at, kind, day_cutoff_hour, members:trip_members(user_id, role, profile:profiles(id, display_name))',
       )
       .order('created_at', { ascending: false }),
   )
@@ -360,6 +366,7 @@ async function createTrip(trip: NewTrip): Promise<string> {
       p_trip_date: trip.tripDate,
       p_place: trip.place,
       p_member_ids: trip.memberIds,
+      p_kind: trip.kind,
     }),
   ) as string
 }
@@ -369,7 +376,7 @@ async function createTrip(trip: NewTrip): Promise<string> {
 const PHOTO_BUCKET = 'trip-photos'
 
 const TRIP_COLUMNS =
-  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, chef_points, casino_points, duel_points, members:trip_members(user_id, role, profile:profiles(id, display_name))'
+  'id, owner_id, name, trip_date, place, created_at, kind, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, chef_points, casino_points, duel_points, members:trip_members(user_id, role, profile:profiles(id, display_name))'
 
 async function getTrip(tripId: string): Promise<TripDetail> {
   const sb = requireSupabase()

@@ -6,8 +6,8 @@
 
 .profile-name {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-family: var(--font-title);
+  font-size: 1.6rem;
   line-height: 1.1;
   word-break: break-word;
 }
@@ -15,15 +15,20 @@
 .profile-badge {
   display: inline-block;
   margin: 6px 0 0;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: rgba(255, 246, 220, 0.12);
-  font-size: 0.8rem;
-  font-weight: 700;
+  padding: 1px 8px;
+  border: 2px solid var(--amber);
+  border-radius: 4px;
+  color: var(--amber);
+  font-family: var(--font-label);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transform: rotate(-3deg);
 }
 
 .profile-form {
-  margin-top: 20px;
+  margin-top: 22px;
 }
 
 .profile-row {
@@ -37,16 +42,16 @@
 }
 
 .profile-code {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .profile-signout {
-  margin-top: 24px;
+  margin-top: 26px;
 }
 
 .profile-demo-note {
   margin: 8px 0 0;
   text-align: center;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   opacity: 0.6;
 }

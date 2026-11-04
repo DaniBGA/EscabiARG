@@ -72,8 +72,8 @@ export default function ChefRouletteBox({ detail, me, onChange }: Props) {
   const wheelPlayers = members.map((m) => ({ id: m.user_id, name: m.profile?.display_name ?? '?' }))
 
   return (
-    <section className="card-box" id="chef" aria-labelledby="chef-title">
-      <h3 id="chef-title" className="box-title">👨‍🍳 ¿Quién cocina?</h3>
+    <section className="card-box card-box--chef" id="chef" aria-labelledby="chef-title">
+      <h3 id="chef-title" className="box-title">¿Quién cocina?</h3>
 
       {!spin && (
         <>
@@ -87,11 +87,11 @@ export default function ChefRouletteBox({ detail, me, onChange }: Props) {
           <div className="vote-row chef-start">
             <button type="button" className="btn btn--primary" disabled={busy}
               onClick={() => run(() => api.startChefSpin(detail.trip.id, 'comida'), '🍳 ¡Ruleta armada! Que se metan todos')}>
-              🍳 ¿Quién cocina?
+              ¿Quién cocina?
             </button>
             <button type="button" className="btn btn--ghost" disabled={busy}
               onClick={() => run(() => api.startChefSpin(detail.trip.id, 'trago'), '🍹 ¡Ruleta armada! Que se metan todos')}>
-              🍹 ¿Quién prepara el trago?
+              ¿Quién prepara el trago?
             </button>
           </div>
           {last && (
@@ -120,7 +120,7 @@ export default function ChefRouletteBox({ detail, me, onChange }: Props) {
             {!joined.includes(me) && (
               <button type="button" className="btn btn--primary" disabled={busy}
                 onClick={() => run(() => api.joinChefSpin(spin.id), '🎡 Adentro de la ruleta')}>
-                🎡 Meterme a la ruleta
+                Meterme a la ruleta
               </button>
             )}
             {(spin.started_by === me || detail.trip.owner_id === me) && (

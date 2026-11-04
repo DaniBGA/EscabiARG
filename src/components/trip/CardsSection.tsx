@@ -53,7 +53,7 @@ export default function CardsSection({ cards, members, userId, onChange }: Props
   }
 
   return (
-    <section className="card-box" aria-labelledby="cards-title">
+    <section className="card-box card-box--cards" aria-labelledby="cards-title">
       <h3 id="cards-title" className="box-title">Tus comodines</h3>
       {mine.length === 0 ? (
         <p className="muted">Ganá una jornada para girar la ruleta y llevarte un comodín.</p>

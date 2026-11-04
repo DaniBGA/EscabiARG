@@ -40,6 +40,7 @@ import {
   isActiveChallenge,
   missionPoints,
   myPendingItems,
+  outingState,
   tripDay,
 } from './game'
 import { MISSIONS } from './missions'
@@ -53,7 +54,7 @@ import { SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
 
 export const DEMO_USER_ID = 'demo-me'
 const STORAGE_KEY = 'escabiarg:demo-data'
-const VERSION = 5
+const VERSION = 6
 
 type StoredTrip = Omit<Trip, 'members'> &
   TripRules & {
@@ -272,6 +273,7 @@ function seed(): DemoData {
     trips: [
       {
         id: T1,
+        kind: 'viaje',
         owner_id: DEMO_USER_ID,
         name: 'Finde en la costa',
         trip_date: yesterday,
@@ -286,6 +288,7 @@ function seed(): DemoData {
       },
       {
         id: T2,
+        kind: 'salida',
         owner_id: 'demo-tincho',
         name: 'Previa del sábado',
         trip_date: nextSaturday(),
@@ -395,6 +398,15 @@ function withProfiles(data: DemoData, trip: StoredTrip) {
 function tripFor(data: DemoData, tripId: string) {
   const trip = data.trips.find((t) => t.id === tripId)
   if (!trip || !trip.members.some((m) => m.user_id === data.me.id)) throw new Error('NOT_TRIP_MEMBER')
+  return trip
+}
+
+/** Igual que el candado de la base: en una salida cerrada o futura no se carga nada nuevo */
+function requireOpen(data: DemoData, tripId: string) {
+  const trip = tripFor(data, tripId)
+  const st = outingState(trip)
+  if (st === 'upcoming') throw new Error('OUTING_NOT_STARTED')
+  if (st === 'finished') throw new Error('OUTING_FINISHED')
   return trip
 }
 
@@ -937,9 +949,11 @@ export const demoApi: Api = {
     const id = newId()
     data.trips.push({
       id,
+      kind: trip.kind,
       owner_id: data.me.id,
       name: name.slice(0, 60),
-      trip_date: trip.tripDate,
+      // Una salida sin fecha es para hoy
+      trip_date: trip.tripDate ?? (trip.kind === 'salida' ? tripDay(DEFAULT_CUTOFF_HOUR) : null),
       place: trip.place?.trim().slice(0, 80) || null,
       created_at: new Date().toISOString(),
       ...DEFAULT_RULES,
@@ -1007,7 +1021,7 @@ export const demoApi: Api = {
   async logDrink(tripId, drinkId, photoPath) {
     await wait()
     const data = load()
-    tripFor(data, tripId)
+    requireOpen(data, tripId)
     const drink = data.drinks.find((d) => d.id === drinkId && d.trip_id === tripId && !d.archived)
     if (!drink) throw new Error('DRINK_NOT_FOUND')
     checkPhoto(data, tripId, photoPath)
@@ -1034,7 +1048,7 @@ export const demoApi: Api = {
   async chooseMission(tripId, difficulty) {
     await wait()
     const data = load()
-    const trip = tripFor(data, tripId)
+    const trip = requireOpen(data, tripId)
     const today = todayOf(trip)
     if (data.missions.some((m) => m.trip_id === tripId && m.user_id === data.me.id && m.day === today)) {
       throw new Error('MISSION_ALREADY_CHOSEN')
@@ -1059,7 +1073,7 @@ export const demoApi: Api = {
   async completeMission(tripId, photoPath) {
     await wait()
     const data = load()
-    const trip = tripFor(data, tripId)
+    const trip = requireOpen(data, tripId)
     botsAct(data)
     const m = data.missions.find((x) => x.trip_id === tripId && x.user_id === data.me.id && x.day === todayOf(trip))
     if (!m) throw new Error('MISSION_NOT_FOUND')
@@ -1086,7 +1100,7 @@ export const demoApi: Api = {
   async reportQuiebre(tripId, userId, photoPaths) {
     await wait()
     const data = load()
-    const trip = tripFor(data, tripId)
+    const trip = requireOpen(data, tripId)
     if (!trip.members.some((m) => m.user_id === userId)) throw new Error('NOT_TRIP_MEMBER')
     const photos = [...new Set(photoPaths)]
     if (photos.length < 1 || photos.length > 3 || photos.length !== photoPaths.length) {
@@ -1192,7 +1206,7 @@ export const demoApi: Api = {
     const data = load()
     const m = data.missions.find((x) => x.id === missionId)
     if (!m) throw new Error('MISSION_NOT_FOUND')
-    const trip = tripFor(data, m.trip_id)
+    const trip = requireOpen(data, m.trip_id)
     if (m.user_id === data.me.id) throw new Error('CANNOT_CHALLENGE_OWN')
     if (m.day !== todayOf(trip)) throw new Error('MISSION_NOT_TODAY')
     if (m.completed_at) throw new Error('MISSION_ALREADY_DONE')
@@ -1339,7 +1353,7 @@ export const demoApi: Api = {
   async reportInfraction(tripId, userId, infractionId, photoPaths) {
     await wait()
     const data = load()
-    const trip = tripFor(data, tripId)
+    const trip = requireOpen(data, tripId)
     if (!trip.members.some((m) => m.user_id === userId)) throw new Error('NOT_TRIP_MEMBER')
     const inf = data.infractions.find((x) => x.id === infractionId && x.trip_id === tripId && !x.archived)
     if (!inf) throw new Error('INFRACTION_NOT_FOUND')
@@ -1389,7 +1403,7 @@ export const demoApi: Api = {
   async startChefSpin(tripId, kind) {
     await wait()
     const data = load()
-    tripFor(data, tripId)
+    requireOpen(data, tripId)
     if (data.chefSpins.some((x) => x.trip_id === tripId && ['joining', 'cooking', 'voting'].includes(x.status))) {
       throw new Error('CHEF_SPIN_ACTIVE')
     }
@@ -1469,7 +1483,7 @@ export const demoApi: Api = {
   async startCasino(tripId, minutes) {
     await wait()
     const data = load()
-    const trip = tripFor(data, tripId)
+    const trip = requireOpen(data, tripId)
     botsAct(data)
     // En la demo se permite 1 minuto para probar rápido
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600) throw new Error('INVALID_MINUTES')
@@ -1555,7 +1569,7 @@ export const demoApi: Api = {
   async challengeDuel(tripId, opponentId, kind, seconds) {
     await wait()
     const data = load()
-    const trip = tripFor(data, tripId)
+    const trip = requireOpen(data, tripId)
     botsAct(data)
     if (opponentId === data.me.id || !trip.members.some((m) => m.user_id === opponentId)) throw new Error('INVALID_OPPONENT')
     if (kind === 'fondo' ? seconds < 10 || seconds > 120 : seconds < 30 || seconds > 300) throw new Error('INVALID_SECONDS')

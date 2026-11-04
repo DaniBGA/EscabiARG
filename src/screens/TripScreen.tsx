@@ -10,6 +10,7 @@ import {
   isActiveChallenge,
   myLiveDuel,
   myMissionToday,
+  outingState,
   pendingPoints,
   pendingSpins,
   scoreboard,
@@ -17,7 +18,7 @@ import {
 } from '../lib/game'
 import { goHome } from '../lib/router'
 import Avatar from '../components/Avatar'
-import { BackIcon } from '../components/icons'
+import { BackIcon, DizzyIcon, MugIcon } from '../components/icons'
 import ActivityFeed from '../components/trip/ActivityFeed'
 import CardsSection from '../components/trip/CardsSection'
 import CasinoBox from '../components/trip/CasinoBox'
@@ -32,6 +33,7 @@ import LogDrinkSheet from '../components/trip/LogDrinkSheet'
 import MissionCard from '../components/trip/MissionCard'
 import MissionsBoard from '../components/trip/MissionsBoard'
 import PendingSection from '../components/trip/PendingSection'
+import QuiebreOverlay from '../components/trip/QuiebreOverlay'
 import QuiebreSheet from '../components/trip/QuiebreSheet'
 import RouletteSheet from '../components/trip/RouletteSheet'
 import ScoreBoard from '../components/trip/ScoreBoard'
@@ -53,6 +55,8 @@ const REFRESH_MS = 20_000
 const FAST_REFRESH_MS = 3_000
 /** Durante un duelo tuyo, casi en vivo */
 const DUEL_REFRESH_MS = 1_200
+/** Un quiebre se "anuncia" con animación si pasó hace menos de esto */
+const QUIEBRE_FRESH_MS = 15 * 60_000
 
 function formatTripDate(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
@@ -71,6 +75,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const [now, setNow] = useState(() => Date.now())
   const [clockOffset, setClockOffset] = useState(0)
   const [closedDuels, setClosedDuels] = useState<Record<string, boolean>>({})
+  const [quiebreTitle, setQuiebreTitle] = useState<string | null>(null)
   const toastTimer = useRef<number | undefined>(undefined)
 
   const load = useCallback(async () => {
@@ -123,6 +128,41 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
+  const quiebreTitleFor = useCallback(
+    (userId: string) => {
+      if (userId === user.id) return '¡Quebraste!'
+      const name = detail?.trip.members.find((m) => m.user_id === userId)?.profile?.display_name ?? 'Alguien'
+      return `¡${name} quebró!`
+    },
+    [detail, user.id],
+  )
+
+  // Si alguien acaba de quebrar (y todavía no lo viste), animación a pantalla completa
+  useEffect(() => {
+    if (!detail) return
+    const key = `escabiarg:seen-quiebres:${tripId}`
+    let seen: string[] = []
+    try {
+      seen = JSON.parse(localStorage.getItem(key) ?? '[]') as string[]
+    } catch {
+      seen = []
+    }
+    const fresh = detail.events.filter(
+      (e) =>
+        e.kind === 'quiebre' &&
+        e.status !== 'rejected' &&
+        Date.now() - Date.parse(e.created_at) < QUIEBRE_FRESH_MS &&
+        !seen.includes(e.id),
+    )
+    if (fresh.length === 0) return
+    setQuiebreTitle(quiebreTitleFor(fresh[0].user_id))
+    try {
+      localStorage.setItem(key, JSON.stringify([...fresh.map((e) => e.id), ...seen].slice(0, 100)))
+    } catch {
+      // sin localStorage: puede repetirse, no pasa nada
+    }
+  }, [detail, tripId, quiebreTitleFor])
+
   const showToast = (message?: string) => {
     if (!message) return
     setToast(message)
@@ -169,7 +209,15 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const missionUnderVote = Boolean(
     mission && detail.challenges.some((c) => c.mission_id === mission.id && isActiveChallenge(c)),
   )
-  const pending = pendingSpins(events, cards, me, today)
+  // Previa y salida: dura una sola jornada
+  const isOuting = trip.kind === 'salida'
+  const outing = outingState(trip, now)
+  const canPlay = outing === 'open'
+  const nightDay = trip.trip_date ?? today
+  const nightBoard = isOuting ? scoreboard(members, events, nightDay) : []
+  const nightRow = nightBoard.find((r) => r.userId === me)
+  // En una salida no hay ruleta de comodines: se gira recién al terminar la jornada
+  const pending = isOuting ? [] : pendingSpins(events, cards, me, today)
   const activeCards = cards.filter((c) => c.user_id === me && c.status === 'active')
   const doubleActive = activeCards.some((c) => cardDef(c.card_key).effect === 'double')
   const shieldActive = activeCards.some((c) => cardDef(c.card_key).effect === 'shield')
@@ -184,7 +232,12 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           <div className="trip-title-wrap">
             <h1 className="trip-title">{trip.name}</h1>
             <p className="trip-sub">
-              {[trip.trip_date && formatTripDate(trip.trip_date), trip.place, `${members.length} jugadores`]
+              {[
+                isOuting && '🌙 Previa y salida',
+                trip.trip_date && formatTripDate(trip.trip_date),
+                trip.place,
+                `${members.length} jugadores`,
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
@@ -202,6 +255,50 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           <p className="demo-banner"><strong>Modo demo</strong> · Probá cargar tragos, misiones y quiebres.</p>
         )}
 
+        {isOuting && outing === 'upcoming' && trip.trip_date && (
+          <div className="outing-banner">
+            <span className="outing-emoji" aria-hidden="true">🌙</span>
+            <div>
+              <strong>La salida es el {formatTripDate(trip.trip_date)}</strong>
+              <span>Ese día se habilita todo: tragos, misiones, duelos, casino… Mientras tanto, armá la carta en Reglas.</span>
+            </div>
+          </div>
+        )}
+
+        {isOuting && outing === 'finished' && (
+          <div className="outing-banner outing-banner--done">
+            <span className="outing-emoji" aria-hidden="true">🏁</span>
+            <div>
+              <strong>La salida terminó</strong>
+              <span>Todavía se pueden validar fotos, cumplir prendas y ver la galería.</span>
+            </div>
+            <ol className="podium">
+              {nightBoard.slice(0, 3).map((r, i) => (
+                <li key={r.userId} className={`podium-${i + 1}`}>
+                  <span className="podium-medal" aria-hidden="true">{r.points > 0 ? ['🥇', '🥈', '🥉'][r.rank - 1] ?? '' : ''}</span>
+                  <Avatar id={r.userId} name={r.name} size={i === 0 ? 48 : 38} />
+                  <span className="podium-name">{r.userId === me ? 'Vos' : r.name}</span>
+                  <span className="podium-pts">{r.points}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {isOuting ? (
+          <div className="stats">
+            <div className="stat">
+              <span className="stat-label">Puntos de la noche</span>
+              <span className="stat-value">{nightRow?.points ?? 0}</span>
+              {waiting !== 0 && <span className="stat-pending">⏳ {waiting > 0 ? '+' : ''}{waiting} por validar</span>}
+            </div>
+            <div className="stat">
+              <span className="stat-label">Puesto</span>
+              <span className="stat-value">{nightRow ? `${nightRow.rank}°` : '—'}</span>
+              <span className="stat-sub">de {members.length}</span>
+            </div>
+          </div>
+        ) : (
         <div className="stats">
           <div className="stat">
             <span className="stat-label">Hoy</span>
@@ -215,6 +312,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             <span className="stat-sub">{totalRow ? `${totalRow.rank}° de ${members.length}` : '—'}</span>
           </div>
         </div>
+        )}
 
         {(doubleActive || shieldActive) && (
           <p className="active-effects">
@@ -223,16 +321,18 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           </p>
         )}
 
+        {canPlay && (
         <div className="actions">
           <button type="button" className="action action--drink" onClick={() => setSheet('drink')}>
-            <span className="action-emoji" aria-hidden="true">🍺</span>
+            <span className="action-emoji" aria-hidden="true"><MugIcon size={30} /></span>
             <span>Cargar trago</span>
           </button>
           <button type="button" className="action action--quiebre" onClick={() => setSheet('quiebre')}>
-            <span className="action-emoji" aria-hidden="true">😵</span>
+            <span className="action-emoji" aria-hidden="true"><DizzyIcon size={26} /></span>
             <span>Alguien quebró</span>
           </button>
         </div>
+        )}
 
         {pending.map((day) => (
           <button
@@ -270,7 +370,19 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         </nav>
 
         <div className="tab-panel" role="tabpanel">
-          {tab === 'play' && (
+          {tab === 'play' && !canPlay && (
+            <>
+              <section className="card-box">
+                <p className="muted center">
+                  {outing === 'upcoming'
+                    ? '🌙 Los juegos se habilitan el día de la salida.'
+                    : '🏁 La salida terminó: ya no se pueden cargar cosas nuevas.'}
+                </p>
+              </section>
+              <ForfeitsBox detail={detail} me={me} onChange={refresh} canReport={false} />
+            </>
+          )}
+          {tab === 'play' && canPlay && (
             <>
               <MissionCard
                 tripId={tripId}
@@ -285,14 +397,28 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
               <ChefRouletteBox detail={detail} me={me} onChange={refresh} />
               <CasinoBox detail={detail} me={me} now={now} isDemo={user.isDemo} onChange={refresh} />
               <ForfeitsBox detail={detail} me={me} onChange={refresh} />
-              <CardsSection cards={cards} members={members} userId={me} onChange={refresh} />
+              {!isOuting && <CardsSection cards={cards} members={members} userId={me} onChange={refresh} />}
             </>
           )}
           {tab === 'board' && (
-            <ScoreBoard members={members} events={events} cards={cards} userId={me} today={today} />
+            <ScoreBoard
+              members={members}
+              events={events}
+              cards={cards}
+              userId={me}
+              today={today}
+              singleDay={isOuting ? nightDay : undefined}
+            />
           )}
           {tab === 'feed' && (
-            <ActivityFeed events={events} eventVotes={detail.eventVotes} members={members} userId={me} today={today} />
+            <ActivityFeed
+              events={events}
+              eventVotes={detail.eventVotes}
+              members={members}
+              userId={me}
+              today={today}
+              onReplayQuiebre={(userId) => setQuiebreTitle(quiebreTitleFor(userId))}
+            />
           )}
           {tab === 'gallery' && <GalleryTab events={events} members={members} userId={me} today={today} />}
           {tab === 'drinks' && (
@@ -367,6 +493,8 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           />
         )
       })()}
+
+      {quiebreTitle && <QuiebreOverlay title={quiebreTitle} onClose={() => setQuiebreTitle(null)} />}
 
       {toast && (
         <div className="toast" role="status">

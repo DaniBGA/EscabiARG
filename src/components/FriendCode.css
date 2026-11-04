@@ -1,27 +1,32 @@
+/* El código como un sello / ficha */
 .friend-code {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 213, 107, 0.08);
-  border: 2px dashed rgba(255, 213, 107, 0.35);
+  border-radius: 10px;
+  background: var(--paper) var(--grain);
+  color: var(--paper-ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  transform: rotate(-0.8deg);
 }
 
 .friend-code-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  opacity: 0.75;
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
 }
 
 .friend-code-value {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-weight: 800;
-  font-size: 2rem;
-  letter-spacing: 0.25em;
-  margin-right: -0.25em;
-  color: #ffd56b;
+  font-family: var(--font-title);
+  font-size: 2.2rem;
+  letter-spacing: 0.2em;
+  margin-right: -0.2em;
+  color: var(--red);
   user-select: all;
 }
 
@@ -33,5 +38,7 @@
 
 .friend-code-actions .btn {
   min-height: 40px;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  color: var(--paper-ink);
+  box-shadow: 0 3px 0 rgba(42, 29, 16, 0.25);
 }

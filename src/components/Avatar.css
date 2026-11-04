@@ -4,9 +4,11 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: #2a1606;
-  font-family: var(--font-display);
+  border: 2px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--font-label);
+  font-weight: 800;
   line-height: 1;
   letter-spacing: 0.02em;
-  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
 }

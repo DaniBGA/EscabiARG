@@ -15,7 +15,7 @@ type Props = {
 }
 
 const SEG = 360 / CARDS.length
-const COLORS = ['#f7b52c', '#fff1cc', '#e8920f']
+const COLORS = ['#f2a71b', '#f3e7c9', '#d6442c', '#f3e7c9', '#3567a0', '#f3e7c9']
 const SPIN_MS = 4600
 
 const point = (deg: number, r: number) => {
@@ -91,7 +91,7 @@ export default function RouletteSheet({ open, onClose, tripId, day, today, onDon
                     <path
                       d={`M0 0 L${x1} ${y1} A100 100 0 0 1 ${x2} ${y2} Z`}
                       fill={COLORS[i % COLORS.length]}
-                      stroke="#6b3a08"
+                      stroke="#16110c"
                       strokeWidth="1.5"
                     />
                     <text
@@ -105,11 +105,11 @@ export default function RouletteSheet({ open, onClose, tripId, day, today, onDon
                   </g>
                 )
               })}
-              <circle r="16" fill="#6b3a08" />
-              <circle r="9" fill="#ffd56b" />
+              <circle r="16" fill="#16110c" />
+              <circle r="9" fill="#f2a71b" />
             </g>
-            <circle r="101" fill="none" stroke="#2a1606" strokeWidth="4" />
-            <path d="M-11 -112 L11 -112 L0 -88 Z" fill="#fff6dc" stroke="#2a1606" strokeWidth="2" />
+            <circle r="101" fill="none" stroke="#16110c" strokeWidth="4" />
+            <path d="M-11 -112 L11 -112 L0 -88 Z" fill="#f3e7c9" stroke="#16110c" strokeWidth="2" />
           </svg>
         </div>
 

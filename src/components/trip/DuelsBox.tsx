@@ -69,8 +69,8 @@ export default function DuelsBox({ detail, me, today, onChange }: Props) {
   }
 
   return (
-    <section className="card-box" id="duelos" aria-labelledby="duels-title">
-      <h3 id="duels-title" className="box-title">⚔️ Duelos</h3>
+    <section className="card-box card-box--duel" id="duelos" aria-labelledby="duels-title">
+      <h3 id="duels-title" className="box-title">Duelos</h3>
       <p className="muted">
         Retá a alguien del viaje a fondo blanco o shots. El ganador suma +{detail.trip.duel_points}.
       </p>
@@ -95,7 +95,7 @@ export default function DuelsBox({ detail, me, today, onChange }: Props) {
         </div>
       ) : (
         <button type="button" className="btn btn--primary btn--block" onClick={() => setOpen(true)} disabled={playedToday >= DUELS_PER_DAY}>
-          ⚔️ Retar a un duelo
+          Retar a un duelo
         </button>
       )}
       <p className="muted small">

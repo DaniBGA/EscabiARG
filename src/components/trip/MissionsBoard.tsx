@@ -39,7 +39,7 @@ export default function MissionsBoard({ detail, me, today, now, onChange }: Prop
   }
 
   return (
-    <section className="card-box" aria-labelledby="missions-title">
+    <section className="card-box card-box--missions" aria-labelledby="missions-title">
       <h3 id="missions-title" className="box-title">Misiones de hoy</h3>
       <ul className="missions-list">
         {members.map((m) => {
@@ -76,7 +76,7 @@ export default function MissionsBoard({ detail, me, today, now, onChange }: Prop
                       disabled={busy !== null}
                       onClick={() => challenge(mission.id)}
                     >
-                      👎 Votar que es mala
+                      Votar que es mala
                     </button>
                   ) : null}
                   {c && !pendingIds.has(c.id) && (isActiveChallenge(c) || c.phase === 'replaced' || c.phase === 'kept') && (

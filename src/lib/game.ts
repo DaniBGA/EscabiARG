@@ -65,6 +65,22 @@ export function tripDay(cutoffHour = DEFAULT_CUTOFF_HOUR, at: Date | number = Da
 
 export const formatHour = (h: number) => `${String(h).padStart(2, '0')}:00`
 
+// ---------- Previa y salida (dura una sola jornada) ----------
+
+export type OutingState = 'open' | 'upcoming' | 'finished'
+
+/** Igual que outing_state() en la base. Los viajes siempre están 'open'. */
+export function outingState(
+  trip: { kind?: string; trip_date: string | null; day_cutoff_hour?: number },
+  now: Date | number = Date.now(),
+): OutingState {
+  if (trip.kind !== 'salida' || !trip.trip_date) return 'open'
+  const today = tripDay(trip.day_cutoff_hour ?? DEFAULT_CUTOFF_HOUR, now)
+  if (today < trip.trip_date) return 'upcoming'
+  if (today > trip.trip_date) return 'finished'
+  return 'open'
+}
+
 export function addDays(day: string, n: number) {
   const d = new Date(`${day}T12:00:00Z`)
   d.setUTCDate(d.getUTCDate() + n)

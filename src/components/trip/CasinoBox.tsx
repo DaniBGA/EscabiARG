@@ -82,8 +82,8 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
   const amountValid = amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount >= 0
 
   return (
-    <section className="card-box" id="casino" aria-labelledby="casino-title">
-      <h3 id="casino-title" className="box-title">🎰 Casino</h3>
+    <section className="card-box card-box--casino" id="casino" aria-labelledby="casino-title">
+      <h3 id="casino-title" className="box-title">Casino</h3>
 
       {!session && (
         <>
@@ -100,7 +100,7 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
           </div>
           <button type="button" className="btn btn--primary btn--block" disabled={busy}
             onClick={() => run(() => api.startCasino(detail.trip.id, minutes), '🎰 ¡Arrancó el casino! Que entren los que juegan')}>
-            🎰 Arrancar casino ({durationLabel(minutes)})
+            Arrancar casino ({durationLabel(minutes)})
           </button>
           {lastDone && (
             <p className="muted small">
@@ -133,7 +133,7 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
             {!mine && (
               <button type="button" className="btn btn--primary" disabled={busy}
                 onClick={() => run(() => api.joinCasino(session.id), '🎲 Entraste al casino')}>
-                🎲 Entrar al casino
+                Entrar al casino
               </button>
             )}
             {(session.started_by === me || detail.trip.owner_id === me) && (
@@ -150,7 +150,7 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
 
       {session && over && (
         <>
-          <p className="chef-result">🔔 ¡Se terminó el tiempo!</p>
+          <p className="chef-result">¡Se terminó el tiempo!</p>
           <p className="muted small center">Tienen hasta las {formatTime(session.report_until)} para cargar el resultado.</p>
           {mine && !mine.reported_at && (
             <form className="sheet-stack casino-form" onSubmit={report}>

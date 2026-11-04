@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import type { Profile } from '../lib/api'
+import type { Profile, TripKind } from '../lib/api'
+import { DEFAULT_CUTOFF_HOUR, tripDay } from '../lib/game'
 import { useApi } from '../lib/authContext'
 import { friendlyError } from '../lib/errors'
 import Avatar from './Avatar'
@@ -9,13 +10,16 @@ import './CreateTripSheet.css'
 
 type Props = {
   open: boolean
+  /** Viaje (varios días) o previa y salida (una jornada) */
+  kind: TripKind
   onClose: () => void
   friends: Profile[]
   onCreated: () => void
   onOpenFriends: () => void
 }
 
-export default function CreateTripSheet({ open, onClose, friends, onCreated, onOpenFriends }: Props) {
+export default function CreateTripSheet({ open, kind, onClose, friends, onCreated, onOpenFriends }: Props) {
+  const isOuting = kind === 'salida'
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
   const [place, setPlace] = useState('')
@@ -56,7 +60,9 @@ export default function CreateTripSheet({ open, onClose, friends, onCreated, onO
     try {
       await api.createTrip({
         name: name.trim(),
+        // Una salida sin fecha elegida es para hoy (la base calcula la jornada)
         tripDate: date || null,
+        kind,
         place: place.trim() || null,
         // Solo amigos que siguen en la lista (por si se quitó alguno mientras tanto)
         memberIds: friends.filter((f) => selected.has(f.id)).map((f) => f.id),
@@ -71,7 +77,12 @@ export default function CreateTripSheet({ open, onClose, friends, onCreated, onO
   }
 
   return (
-    <Sheet open={open} title="Nuevo viaje" onClose={close}>
+    <Sheet open={open} title={isOuting ? 'Nueva previa y salida' : 'Nuevo viaje'} onClose={close}>
+      {isOuting && (
+        <p className="muted small create-outing-note">
+          🌙 Es igual que un viaje pero dura una sola jornada: tragos, misiones, duelos, casino y todo lo demás, solo por esa noche.
+        </p>
+      )}
       <form className="trip-form" onSubmit={submit}>
         <label className="field">
           <span>Nombre del viaje</span>
@@ -79,7 +90,7 @@ export default function CreateTripSheet({ open, onClose, friends, onCreated, onO
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Ej: Previa del sábado"
+            placeholder={isOuting ? 'Ej: Previa del viernes' : 'Ej: Finde en la costa'}
             maxLength={60}
             required
             autoFocus
@@ -88,8 +99,8 @@ export default function CreateTripSheet({ open, onClose, friends, onCreated, onO
 
         <div className="trip-form-row">
           <label className="field">
-            <span>Fecha <em>(opcional)</em></span>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <span>{isOuting ? 'Día de la salida' : <>Fecha <em>(opcional)</em></>}</span>
+            <input type="date" value={date || (isOuting ? tripDay(DEFAULT_CUTOFF_HOUR) : '')} onChange={(e) => setDate(e.target.value)} />
           </label>
           <label className="field">
             <span>Lugar <em>(opcional)</em></span>
@@ -148,8 +159,8 @@ export default function CreateTripSheet({ open, onClose, friends, onCreated, onO
           {busy
             ? 'Creando…'
             : selected.size > 0
-              ? `Crear viaje con ${selected.size} amigo${selected.size === 1 ? '' : 's'}`
-              : 'Crear viaje'}
+              ? `Crear ${isOuting ? 'salida' : 'viaje'} con ${selected.size} amigo${selected.size === 1 ? '' : 's'}`
+              : isOuting ? 'Crear salida' : 'Crear viaje'}
         </button>
       </form>
     </Sheet>

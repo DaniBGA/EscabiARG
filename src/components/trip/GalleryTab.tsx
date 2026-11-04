@@ -73,7 +73,7 @@ export default function GalleryTab({ events, members, userId, today }: Props) {
       </div>
 
       {shown.length === 0 ? (
-        <p className="muted center">Todavía no hay fotos acá. ¡Que empiece la joda! 📸</p>
+        <p className="muted center hand">Todavía no hay fotos acá. ¡Que empiece la joda!</p>
       ) : (
         <ul className="gallery-grid">
           {shown.map((p) => (
