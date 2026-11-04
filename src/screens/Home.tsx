@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Profile, Trip } from '../lib/api'
 import { useApi, useAuth, type AppUser } from '../lib/authContext'
 import { friendlyError } from '../lib/errors'
@@ -43,14 +43,67 @@ export default function Home({ user }: { user: AppUser }) {
     }
   }, [loadProfile, loadFriends, loadTrips])
 
+  const [live, setLive] = useState(false)
+  const pendingTimer = useRef<number | undefined>(undefined)
+  /** Junta varios avisos seguidos en un solo pedido */
+  const schedulePending = useCallback(() => {
+    window.clearTimeout(pendingTimer.current)
+    pendingTimer.current = window.setTimeout(() => void loadPending(), 500)
+  }, [loadPending])
+
   useEffect(() => {
     loadAll()
     loadPending()
+    return () => window.clearTimeout(pendingTimer.current)
+  }, [loadAll, loadPending])
+
+  // En vivo: te agregan como amigo o te suman a un viaje
+  useEffect(
+    () =>
+      api.subscribeUser(userId, {
+        onChange(change) {
+          if (change.t === 'friendships') loadFriends().catch(() => undefined)
+          if (change.t === 'trip_members') {
+            loadTrips().catch(() => undefined)
+            schedulePending()
+          }
+        },
+        onStatus(isLive) {
+          setLive(isLive)
+          if (isLive) {
+            loadFriends().catch(() => undefined)
+            loadTrips().catch(() => undefined)
+          }
+        },
+      }),
+    [api, userId, loadFriends, loadTrips, schedulePending],
+  )
+
+  // Lo que pasa en tus viajes más recientes actualiza los avisos de pendientes
+  const recentTrips = (trips ?? [])
+    .slice(0, 10)
+    .map((t) => t.id)
+    .join(',')
+  useEffect(() => {
+    if (!recentTrips) return
+    const stops = recentTrips.split(',').map((id) => api.subscribeTrip(id, { onChange: schedulePending }))
+    return () => stops.forEach((stop) => stop())
+  }, [api, recentTrips, schedulePending])
+
+  // Sin tiempo real se consulta cada 30 s; con tiempo real, cada tanto por las dudas
+  useEffect(() => {
     const id = window.setInterval(() => {
       if (!document.hidden) loadPending()
-    }, 30_000)
-    return () => window.clearInterval(id)
-  }, [loadAll, loadPending])
+    }, live ? 120_000 : 30_000)
+    const onVisible = () => {
+      if (!document.hidden) schedulePending()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [live, loadPending, schedulePending])
 
   const totalPending = Object.values(pending).reduce((a, b) => a + b, 0)
 

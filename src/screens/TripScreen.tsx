@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TripDetail } from '../lib/api'
+import type { LiveChange } from '../lib/realtime'
+import { applyTripChange, needsReload, nextDeadline } from '../lib/tripSync'
 import { useApi, type AppUser } from '../lib/authContext'
 import { friendlyError } from '../lib/errors'
 import {
@@ -50,11 +52,18 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'drinks', label: 'Reglas' },
 ]
 
+// Sin tiempo real (o en la demo) se vuelve a pedir el viaje cada tanto
 const REFRESH_MS = 20_000
 /** Mientras hay votaciones o fotos por validar se refresca más seguido */
 const FAST_REFRESH_MS = 3_000
 /** Durante un duelo tuyo, casi en vivo */
 const DUEL_REFRESH_MS = 1_200
+/** Con tiempo real los cambios llegan solos; igual se resincroniza cada tanto */
+const LIVE_RESYNC_MS = 180_000
+/** Al volver a la app después de este tiempo afuera, se pide todo de nuevo */
+const AWAY_RELOAD_MS = 20_000
+/** Si después de una jugada no llega el aviso en vivo, se pide todo de nuevo */
+const ECHO_TIMEOUT_MS = 2_000
 /** Un quiebre se "anuncia" con animación si pasó hace menos de esto */
 const QUIEBRE_FRESH_MS = 15 * 60_000
 
@@ -77,20 +86,56 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const [closedDuels, setClosedDuels] = useState<Record<string, boolean>>({})
   const [quiebreTitle, setQuiebreTitle] = useState<string | null>(null)
   const toastTimer = useRef<number | undefined>(undefined)
+  const [live, setLive] = useState(false)
+  const liveRef = useRef(false)
+  /** Hora del último cambio recibido en vivo */
+  const lastChangeAt = useRef(0)
+  const loadSeq = useRef(0)
+  /** Cambios que llegan mientras se está pidiendo el viaje: se aplican arriba de la respuesta */
+  const buffered = useRef<LiveChange[] | null>(null)
+  const reloadTimer = useRef<number | undefined>(undefined)
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
+    buffered.current = []
     try {
       const t0 = Date.now()
       const d = await api.getTrip(tripId)
       const t1 = Date.now()
+      if (seq !== loadSeq.current) return
+      const next = (buffered.current ?? []).reduce(applyTripChange, d)
+      buffered.current = null
       // Reloj del servidor ≈ hora de respuesta − mitad de la demora
       setClockOffset(Date.parse(d.serverTime) - (t0 + t1) / 2)
-      setDetail(d)
+      setDetail(next)
       setError(null)
     } catch (err) {
+      if (seq !== loadSeq.current) return
+      buffered.current = null
       setError(friendlyError(err))
     }
   }, [api, tripId])
+
+  /** Junta varios pedidos seguidos en uno solo */
+  const scheduleReload = useCallback(
+    (delay = 250) => {
+      window.clearTimeout(reloadTimer.current)
+      reloadTimer.current = window.setTimeout(() => void load(), delay)
+    },
+    [load],
+  )
+
+  /** Después de una jugada: con tiempo real llega sola; si no llega, se pide */
+  const expectEcho = useCallback(() => {
+    if (!liveRef.current) {
+      void load()
+      return
+    }
+    const since = Date.now()
+    window.setTimeout(() => {
+      if (lastChangeAt.current < since) void load()
+    }, ECHO_TIMEOUT_MS)
+  }, [load])
 
   const fast = Boolean(
     detail &&
@@ -108,16 +153,71 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
 
   useEffect(() => {
     load()
+    return () => window.clearTimeout(reloadTimer.current)
   }, [load])
 
-  // Refresco periódico para ver lo que cargan y votan los demás
+  // En vivo: cada cambio que hace alguien llega por Supabase Realtime y se aplica al toque
   useEffect(() => {
+    const stop = api.subscribeTrip(tripId, {
+      onChange(change) {
+        lastChangeAt.current = Date.now()
+        buffered.current?.push(change)
+        if (needsReload(change)) scheduleReload()
+        else setDetail((prev) => (prev ? applyTripChange(prev, change) : prev))
+      },
+      onStatus(isLive) {
+        liveRef.current = isLive
+        setLive(isLive)
+        // Recién conectado (o reconectado): pudo haberse perdido algo en el medio
+        if (isLive) scheduleReload()
+      },
+    })
+    return () => {
+      stop()
+      liveRef.current = false
+    }
+  }, [api, tripId, scheduleReload])
+
+  // Sin tiempo real se refresca seguido; con tiempo real, solo de vez en cuando por las dudas
+  useEffect(() => {
+    const ms = live ? LIVE_RESYNC_MS : inDuel ? DUEL_REFRESH_MS : fast ? FAST_REFRESH_MS : REFRESH_MS
     const id = window.setInterval(() => {
       setNow(Date.now())
       if (!document.hidden) load()
-    }, inDuel ? DUEL_REFRESH_MS : fast ? FAST_REFRESH_MS : REFRESH_MS)
+    }, ms)
     return () => window.clearInterval(id)
-  }, [load, fast, inDuel])
+  }, [load, fast, inDuel, live])
+
+  // Al volver a la app (el celular suele cortar la conexión en segundo plano)
+  const hiddenAt = useRef(0)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden) {
+        hiddenAt.current = Date.now()
+        return
+      }
+      setNow(Date.now())
+      if (!liveRef.current || Date.now() - hiddenAt.current > AWAY_RELOAD_MS) scheduleReload(100)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [scheduleReload])
+
+  // Cuando vence una votación, un casino o un duelo, alguien tiene que cerrarlo.
+  // Cada celular espera un poquito distinto: el primero lo cierra y el resto ya lo ve cerrado.
+  const deadline = detail ? nextDeadline(detail) : null
+  useEffect(() => {
+    if (deadline === null) return
+    const wait = deadline - clockOffset - Date.now() + 300 + Math.random() * 900
+    const id = window.setTimeout(() => {
+      setNow(Date.now())
+      api
+        .tickTrip(tripId)
+        .catch(() => undefined)
+        .then(expectEcho)
+    }, Math.max(0, wait))
+    return () => window.clearTimeout(id)
+  }, [deadline, clockOffset, api, tripId, expectEcho])
 
   // Cuenta regresiva de las votaciones
   useEffect(() => {
@@ -172,7 +272,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
 
   const refresh = (message?: string) => {
     showToast(message)
-    load()
+    expectEcho()
   }
 
   const goTo = (anchor: string) => {
@@ -223,7 +323,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const shieldActive = activeCards.some((c) => cardDef(c.card_key).effect === 'shield')
 
   return (
-    <div className="trip-screen">
+    <div className="trip-screen" data-live={live || undefined}>
       <header className="trip-header">
         <div className="trip-header-bar">
           <button type="button" className="header-btn" onClick={goHome} aria-label="Volver al inicio">
@@ -460,7 +560,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         open={sheet === 'roulette'}
         onClose={() => {
           setSheet('none')
-          load()
+          expectEcho()
         }}
         tripId={tripId}
         day={spinDay}
@@ -470,7 +570,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
 
       {(() => {
         // Duelo en vivo, o el último que terminó y todavía no cerraste
-        const live = myLiveDuel(detail.duels, me)
+        const liveDuel = myLiveDuel(detail.duels, me)
         const justDone = detail.duels.find(
           (d) =>
             d.status === 'done' &&
@@ -479,7 +579,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             Date.now() - Date.parse(d.ends_at) < 5 * 60_000 &&
             !closedDuels[d.id],
         )
-        const duel = live ?? (justDone && detail.duelResults.some((r) => r.duel_id === justDone.id) ? justDone : null)
+        const duel = liveDuel ?? (justDone && detail.duelResults.some((r) => r.duel_id === justDone.id) ? justDone : null)
         if (!duel || closedDuels[duel.id]) return null
         return (
           <DuelOverlay
@@ -488,7 +588,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             detail={detail}
             me={me}
             clockOffset={clockOffset}
-            onChange={() => load()}
+            onChange={() => expectEcho()}
             onClose={() => setClosedDuels((c) => ({ ...c, [duel.id]: true }))}
           />
         )

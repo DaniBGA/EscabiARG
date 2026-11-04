@@ -46,6 +46,17 @@ Necesitás:
 > | 4 | `20261107000000_prendas_ruleta_casino.sql` |
 > | 5 | `20261108000000_duelos.sql` |
 > | 6 | `20261109000000_previa_y_salida.sql` |
+> | 7 | `20261110000000_tiempo_real.sql` |
+
+### 2.b Tiempo real
+
+La app se actualiza sola en todos los celulares apenas alguien carga un trago, vota,
+arranca un duelo, etc. (Supabase **Realtime**). No hay que activar nada: viene prendido
+en los proyectos de Supabase y la migración 7 ya configura quién puede escuchar cada
+viaje (solo sus miembros).
+
+> Si Realtime no anda por algún motivo, la app no se rompe: vuelve a refrescar sola
+> cada unos segundos, como antes.
 
 ## 3. Configurar el login
 
@@ -328,6 +339,7 @@ Si todo eso anduvo, ya está online. 🍻
 | La cámara no abre | Permiso denegado | En el navegador: permisos del sitio → Cámara → Permitir. En iPhone: Ajustes → Safari → Cámara |
 | Después de confirmar el mail te manda a `localhost` | Site URL sin configurar | Paso 6 |
 | Las cuentas regresivas se ven corridas | Hora del celular muy desfasada | La app se sincroniza con el servidor; reiniciá la app |
+| Lo que hacen los demás tarda unos segundos en aparecer (no es instantáneo) | Falta la migración de tiempo real, o Realtime está caído | Corré `20261110000000_tiempo_real.sql` (paso 2). En **Realtime → Inspector** podés ver si llegan mensajes a `trip:…` |
 
 ### Error 500 al registrarse
 

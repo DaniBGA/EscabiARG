@@ -61,6 +61,9 @@ type StoredTrip = Omit<Trip, 'members'> &
     members: { user_id: string; role: 'owner' | 'member' }[]
   }
 
+/** En la demo cada evento guarda de qué viaje es */
+type DemoEvent = TripEvent & { trip_id: string; card_id?: string | null }
+
 type DemoData = {
   version: number
   me: Profile
@@ -68,7 +71,7 @@ type DemoData = {
   friendIds: string[]
   trips: StoredTrip[]
   drinks: (Drink & { archived: boolean })[]
-  events: (TripEvent & { card_id?: string | null })[]
+  events: DemoEvent[]
   missions: DailyMission[]
   cards: PlayerCard[]
   eventVotes: (EventVote & { trip_id: string })[]
@@ -173,7 +176,7 @@ function seed(): DemoData {
     title: string,
     emoji: string,
     extra: Partial<TripEvent> = {},
-  ): TripEvent => ({
+  ): DemoEvent => ({
     id: newId(),
     trip_id: T1,
     user_id: user,
@@ -198,7 +201,7 @@ function seed(): DemoData {
   })
 
   // Ayer ganaste vos (40 pts) → tenés la ruleta pendiente
-  const events: TripEvent[] = [
+  const events: DemoEvent[] = [
     pendingQuiebre,
     pendingFernet,
     ev('demo-juli', 'drink', 5, today, 25, 'Birra', '🍺'),
@@ -420,8 +423,9 @@ const todayOf = (trip: StoredTrip) => tripDay(trip.day_cutoff_hour)
 
 function addEvent(
   data: DemoData,
-  e: Omit<TripEvent, 'id' | 'created_at' | 'day' | 'detail' | 'photo_paths' | 'status'> & Partial<TripEvent> & { card_id?: string | null },
-) {
+  e: Omit<TripEvent, 'id' | 'created_at' | 'day' | 'detail' | 'photo_paths' | 'status'> &
+    Partial<TripEvent> & { trip_id: string; card_id?: string | null },
+): DemoEvent {
   const trip = data.trips.find((t) => t.id === e.trip_id)
   const event = {
     id: newId(),
@@ -978,6 +982,17 @@ export const demoApi: Api = {
     botsAct(data)
     save(data)
     return buildDetail(data, trip)
+  },
+
+  // La demo no tiene servidor: la pantalla se refresca sola cada pocos segundos
+  async tickTrip() {},
+  subscribeTrip: (_tripId, listener) => {
+    listener.onStatus?.(false)
+    return () => undefined
+  },
+  subscribeUser: (_userId, listener) => {
+    listener.onStatus?.(false)
+    return () => undefined
   },
 
   async saveDrink(tripId, drink) {

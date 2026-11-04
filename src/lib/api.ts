@@ -1,3 +1,4 @@
+import { listen, type LiveListener } from './realtime'
 import { requireSupabase } from './supabase'
 
 export type Profile = {
@@ -70,7 +71,8 @@ export type DrinkInput = { id?: string; name: string; emoji: string; points: num
 
 export type TripEvent = {
   id: string
-  trip_id: string
+  /** No viene en la lectura completa del viaje (ya se sabe de qué viaje es) */
+  trip_id?: string
   user_id: string
   actor_id: string
   kind: 'drink' | 'mission' | 'quiebre' | 'card' | 'infraction' | 'chef' | 'casino' | 'forfeit' | 'duel'
@@ -168,6 +170,7 @@ export type CasinoPlayer = {
   reported_at: string | null
 }
 
+/** Solo vienen los votos de fotos que todavía están por validarse */
 export type EventVote = { event_id: string; voter_id: string; valid: boolean }
 
 export type ChallengePhase = 'vote_bad' | 'proposals' | 'vote_option' | 'replaced' | 'kept'
@@ -258,6 +261,12 @@ export type Api = {
   createTrip(trip: NewTrip): Promise<string>
 
   getTrip(tripId: string): Promise<TripDetail>
+  /** Cierra lo que ya venció (votaciones, casino, duelos). Lo llama la app al llegar la hora */
+  tickTrip(tripId: string): Promise<void>
+  /** Cambios del viaje en vivo. Devuelve la función para dejar de escuchar */
+  subscribeTrip(tripId: string, listener: LiveListener): () => void
+  /** Te agregan como amigo o te suman a un viaje */
+  subscribeUser(userId: string, listener: LiveListener): () => void
   saveDrink(tripId: string, drink: DrinkInput): Promise<void>
   archiveDrink(drinkId: string): Promise<void>
   updateRules(tripId: string, rules: TripRules): Promise<void>
@@ -378,7 +387,27 @@ const PHOTO_BUCKET = 'trip-photos'
 const TRIP_COLUMNS =
   'id, owner_id, name, trip_date, place, created_at, kind, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, chef_points, casino_points, duel_points, members:trip_members(user_id, role, profile:profiles(id, display_name))'
 
+/** null hasta saber si la base ya tiene get_trip_state (migración de tiempo real) */
+let hasTripState: boolean | null = null
+
 async function getTrip(tripId: string): Promise<TripDetail> {
+  if (hasTripState !== false) {
+    const sb = requireSupabase()
+    // Todo el viaje en un solo pedido (y cierra lo vencido antes de leer)
+    const { data, error } = await sb.rpc('get_trip_state', { p_trip: tripId })
+    if (!error) {
+      hasTripState = true
+      return data as TripDetail
+    }
+    const missing = error.code === 'PGRST202' || /could not find the function/i.test(error.message)
+    if (!missing) throw new Error(error.message)
+    hasTripState = false
+  }
+  return getTripLegacy(tripId)
+}
+
+/** Lectura vieja (22 pedidos), por si todavía no se corrió la migración de tiempo real */
+async function getTripLegacy(tripId: string): Promise<TripDetail> {
   const sb = requireSupabase()
   // Cierra votaciones vencidas antes de leer
   check(await sb.rpc('tick_trip', { p_trip: tripId }))
@@ -553,6 +582,11 @@ export const supabaseApi: Api = {
   createTrip,
 
   getTrip,
+  async tickTrip(tripId) {
+    await rpc('tick_trip', { p_trip: tripId })
+  },
+  subscribeTrip: (tripId, listener) => listen(`trip:${tripId}`, listener),
+  subscribeUser: (userId, listener) => listen(`user:${userId}`, listener),
   saveDrink,
   archiveDrink,
   updateRules,
