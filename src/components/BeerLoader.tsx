@@ -6,6 +6,8 @@ type Props = {
   duration?: number
   /** Se llama una vez que la pantalla quedó llena de cerveza */
   onFilled?: () => void
+  /** Arranca ya lleno, sin animación (ej: al cerrar sesión) */
+  instant?: boolean
   /** Contenido que se muestra encima de la cerveza (ej: opciones de logueo) */
   children?: ReactNode
 }
@@ -29,11 +31,12 @@ const prefersReducedMotion = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export default function BeerLoader({ duration = 3600, onFilled, children }: Props) {
+export default function BeerLoader({ duration = 3600, instant = false, onFilled, children }: Props) {
   const liquidRef = useRef<HTMLDivElement>(null)
   const percentRef = useRef<HTMLSpanElement>(null)
   const skipRef = useRef(false)
   const onFilledRef = useRef(onFilled)
+  const instantRef = useRef(instant)
   const [filled, setFilled] = useState(false)
 
   useEffect(() => {
@@ -58,7 +61,7 @@ export default function BeerLoader({ duration = 3600, onFilled, children }: Prop
       onFilledRef.current?.()
     }
 
-    if (prefersReducedMotion()) {
+    if (instantRef.current || prefersReducedMotion()) {
       finish()
       return
     }
@@ -89,7 +92,7 @@ export default function BeerLoader({ duration = 3600, onFilled, children }: Prop
       onClick={filled ? undefined : skip}
     >
       {/* Chorro de cerveza que cae desde arriba */}
-      <div className="pour-stream" aria-hidden="true" />
+      {!instant && <div className="pour-stream" aria-hidden="true" />}
 
       <div className="liquid" ref={liquidRef} aria-hidden="true">
         <div className="foam">

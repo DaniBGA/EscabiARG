@@ -27,3 +27,126 @@ body {
   color: #fff6dc;
   overscroll-behavior: none;
 }
+
+/* ---------- Campos de formulario (compartidos) ---------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #fff6dc;
+}
+
+.field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 246, 220, 0.2);
+  background: rgba(255, 246, 220, 0.06);
+  color: #fff6dc;
+  font: inherit;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.field input::placeholder {
+  color: rgba(255, 246, 220, 0.4);
+}
+
+.field input:focus {
+  outline: none;
+  border-color: #ffd56b;
+  background: rgba(255, 246, 220, 0.1);
+}
+
+.field input[type='date'] {
+  color-scheme: dark;
+}
+
+.field-hint {
+  font-weight: 600;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+/* ---------- Botones (compartidos) ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease, background-color 0.12s ease;
+}
+
+.btn:hover { filter: brightness(1.06); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; filter: none; }
+
+.btn--primary {
+  background: linear-gradient(180deg, #f7b52c, #e8920f);
+  color: #2a1606;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: #fff6dc;
+  border-color: rgba(255, 246, 220, 0.3);
+}
+
+.btn--ghost:hover { background: rgba(255, 246, 220, 0.08); }
+
+.btn--danger {
+  background: transparent;
+  color: #ffb4a6;
+  border-color: rgba(255, 180, 166, 0.35);
+}
+
+.btn--block { width: 100%; }
+
+.btn:focus-visible,
+.icon-btn:focus-visible {
+  outline: 3px solid #ffd56b;
+  outline-offset: 3px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 246, 220, 0.08);
+  color: inherit;
+  cursor: pointer;
+}
+
+.icon-btn:hover { background: rgba(255, 246, 220, 0.16); }
+
+.notice {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 213, 107, 0.14);
+  color: #ffd56b;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.notice--error {
+  background: rgba(255, 107, 87, 0.16);
+  color: #ffb4a6;
+}

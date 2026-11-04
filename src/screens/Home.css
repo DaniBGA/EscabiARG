@@ -1,0 +1,236 @@
+.home {
+  min-height: 100%;
+  background:
+    radial-gradient(ellipse at 50% 0%, #3a2414 0%, transparent 60%),
+    #1a0f08;
+  color: #fff6dc;
+  animation: home-in 0.45s ease-out both;
+}
+
+.home--center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.home-loading {
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.home-error {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+
+.home-error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+/* ---------- Header de espuma ---------- */
+.home-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: max(10px, env(safe-area-inset-top)) 16px 14px;
+  background: linear-gradient(180deg, #fff6dc 60%, #f1dfb0 100%);
+  color: #2a1606;
+}
+
+.home-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -12px;
+  height: 14px;
+  background: radial-gradient(circle at 50% 0%, #f1dfb0 48%, transparent 50%) 0 0 / 34px 14px repeat-x;
+  pointer-events: none;
+}
+
+.home-header-bar {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.home-logo {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(1.9rem, 8vw, 2.6rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #6b3a08;
+}
+
+.header-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: #6b3a08;
+  cursor: pointer;
+}
+
+.header-btn--friends {
+  background: rgba(107, 58, 8, 0.1);
+}
+
+.header-btn--friends:hover {
+  background: rgba(107, 58, 8, 0.18);
+}
+
+.header-btn:focus-visible {
+  outline: 3px solid #e8920f;
+  outline-offset: 2px;
+}
+
+.header-badge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #e8920f;
+  color: #2a1606;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+  border: 2px solid #fff6dc;
+}
+
+/* ---------- Contenido ---------- */
+.home-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 30px 16px max(32px, env(safe-area-inset-bottom));
+}
+
+.home-greeting {
+  margin: 0 0 14px;
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+
+.create-trip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 18px;
+  border: 0;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #f7b52c 0%, #e8920f 100%);
+  color: #2a1606;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(232, 146, 15, 0.25);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.create-trip:hover { filter: brightness(1.05); }
+.create-trip:active { transform: scale(0.98); }
+
+.create-trip:focus-visible {
+  outline: 3px solid #ffd56b;
+  outline-offset: 3px;
+}
+
+.create-trip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(42, 22, 6, 0.14);
+}
+
+.create-trip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.create-trip-text strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.create-trip-text span {
+  font-weight: 700;
+  font-size: 0.92rem;
+  opacity: 0.8;
+}
+
+.trips {
+  margin-top: 30px;
+}
+
+.trips-title {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  color: #ffd56b;
+}
+
+.trips-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 640px) {
+  .trips-list { grid-template-columns: 1fr 1fr; }
+}
+
+.trips-empty {
+  margin: 0;
+  padding: 28px 16px;
+  border-radius: 18px;
+  border: 2px dashed rgba(255, 246, 220, 0.15);
+  text-align: center;
+  opacity: 0.85;
+}
+
+.trips-empty p {
+  margin: 6px 0 0;
+}
+
+.trips-empty-emoji {
+  font-size: 2.2rem;
+}
+
+@keyframes home-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home { animation: none; }
+}

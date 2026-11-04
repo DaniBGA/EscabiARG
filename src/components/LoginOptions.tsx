@@ -1,11 +1,10 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
+import { isGoogleAuthEnabled, isSupabaseConfigured, supabase } from '../lib/supabase'
+import { friendlyError } from '../lib/errors'
 import './LoginOptions.css'
 
-export type LoginMethod = 'google' | 'email' | 'guest'
-
-type Props = {
-  onSelect?: (method: LoginMethod) => void
-}
+type View = 'options' | 'email'
+type EmailMode = 'signin' | 'signup'
 
 const GoogleIcon = () => (
   <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
@@ -23,14 +22,76 @@ const MailIcon = () => (
   </svg>
 )
 
-export default function LoginOptions({ onSelect }: Props) {
+export default function LoginOptions() {
+  const [view, setView] = useState<View>('options')
+  const [mode, setMode] = useState<EmailMode>('signin')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(
+    isSupabaseConfigured ? null : friendlyError('SUPABASE_NOT_CONFIGURED'),
+  )
   const [notice, setNotice] = useState<string | null>(null)
 
-  const handle = (method: LoginMethod) => {
-    onSelect?.(method)
-    // TODO: conectar con el proveedor de autenticación (próxima etapa)
-    setNotice('¡Próximamente! Estamos terminando de enfriar esta opción 🍻')
+  const run = async (action: () => Promise<void>) => {
+    if (!supabase) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      await action()
+    } catch (err) {
+      setError(friendlyError(err))
+    } finally {
+      setBusy(false)
+    }
   }
+
+  const signInWithGoogle = () =>
+    run(async () => {
+      const { error } = await supabase!.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      })
+      if (error) throw error
+    })
+
+  const signInAsGuest = () =>
+    run(async () => {
+      const { error } = await supabase!.auth.signInAnonymously({
+        options: { data: { display_name: 'Invitado' } },
+      })
+      if (error) throw error
+    })
+
+  const submitEmail = (e: FormEvent) => {
+    e.preventDefault()
+    run(async () => {
+      if (mode === 'signin') {
+        const { error } = await supabase!.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        return
+      }
+      const { data, error } = await supabase!.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { display_name: name.trim() },
+          emailRedirectTo: window.location.origin,
+        },
+      })
+      if (error) throw error
+      // Con "Confirm email" activado en Supabase no hay sesión hasta confirmar
+      if (!data.session) {
+        setNotice('¡Listo! Te mandamos un mail para confirmar la cuenta. Después entrá desde acá.')
+        setMode('signin')
+        setPassword('')
+      }
+    })
+  }
+
+  const disabled = busy || !isSupabaseConfigured
 
   return (
     <main className="login">
@@ -40,26 +101,107 @@ export default function LoginOptions({ onSelect }: Props) {
       </header>
 
       <section className="login-card" aria-labelledby="login-title">
-        <h2 id="login-title" className="login-title">¿Arrancamos la previa?</h2>
-        <p className="login-subtitle">Elegí cómo querés entrar</p>
+        {view === 'options' ? (
+          <>
+            <h2 id="login-title" className="login-title">¿Arrancamos la previa?</h2>
+            <p className="login-subtitle">Elegí cómo querés entrar</p>
 
-        <div className="login-buttons">
-          <button type="button" className="login-btn login-btn--google" onClick={() => handle('google')}>
-            <GoogleIcon />
-            Continuar con Google
-          </button>
-          <button type="button" className="login-btn login-btn--email" onClick={() => handle('email')}>
-            <MailIcon />
-            Continuar con email
-          </button>
+            <div className="login-buttons">
+              {isGoogleAuthEnabled && (
+                <button type="button" className="login-btn login-btn--google" onClick={signInWithGoogle} disabled={disabled}>
+                  <GoogleIcon />
+                  Continuar con Google
+                </button>
+              )}
+              <button type="button" className="login-btn login-btn--email" onClick={() => setView('email')} disabled={!isSupabaseConfigured}>
+                <MailIcon />
+                Continuar con email
+              </button>
 
-          <div className="login-divider"><span>o</span></div>
+              <div className="login-divider"><span>o</span></div>
 
-          <button type="button" className="login-btn login-btn--guest" onClick={() => handle('guest')}>
-            Entrar como invitado
-          </button>
-        </div>
+              <button type="button" className="login-btn login-btn--guest" onClick={signInAsGuest} disabled={disabled}>
+                {busy ? 'Entrando…' : 'Entrar como invitado'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <form className="login-form" onSubmit={submitEmail}>
+            <h2 id="login-title" className="login-title">
+              {mode === 'signin' ? 'Entrá con tu email' : 'Creá tu cuenta'}
+            </h2>
 
+            {mode === 'signup' && (
+              <label className="field">
+                <span>¿Cómo te dicen?</span>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ej: El Colo"
+                  maxLength={40}
+                  autoComplete="nickname"
+                  required
+                />
+              </label>
+            )}
+            <label className="field">
+              <span>Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="vos@mail.com"
+                autoComplete="email"
+                required
+              />
+            </label>
+            <label className="field">
+              <span>Contraseña</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                minLength={6}
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                required
+              />
+            </label>
+
+            <button type="submit" className="login-btn login-btn--email" disabled={disabled}>
+              {busy ? 'Un segundo…' : mode === 'signin' ? 'Entrar' : 'Crear cuenta'}
+            </button>
+
+            <button
+              type="button"
+              className="login-link"
+              onClick={() => {
+                setMode(mode === 'signin' ? 'signup' : 'signin')
+                setError(null)
+              }}
+            >
+              {mode === 'signin' ? '¿No tenés cuenta? Creala acá' : '¿Ya tenés cuenta? Entrá'}
+            </button>
+            <button
+              type="button"
+              className="login-link login-link--muted"
+              onClick={() => {
+                setView('options')
+                setError(null)
+                setNotice(null)
+              }}
+            >
+              ← Volver
+            </button>
+          </form>
+        )}
+
+        {error && (
+          <p className="login-notice login-notice--error" role="alert">
+            {error}
+          </p>
+        )}
         {notice && (
           <p className="login-notice" role="status">
             {notice}

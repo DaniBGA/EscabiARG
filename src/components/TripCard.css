@@ -1,0 +1,97 @@
+.trip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 16px;
+  border-radius: 18px;
+  background: #2a190c;
+  border: 1px solid rgba(255, 246, 220, 0.1);
+}
+
+.trip-card-top {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.trip-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.trip-role {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(255, 246, 220, 0.1);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.trip-role--mine {
+  background: rgba(247, 181, 44, 0.18);
+  color: #ffd56b;
+}
+
+.trip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.trip-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.trip-meta .trip-date {
+  text-transform: capitalize;
+}
+
+.trip-members {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.trip-avatars {
+  display: flex;
+}
+
+.trip-avatars > * {
+  margin-left: -8px;
+  border: 2px solid #2a190c;
+}
+
+.trip-avatars > :first-child {
+  margin-left: 0;
+}
+
+.trip-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 246, 220, 0.15);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.trip-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
