@@ -10,6 +10,7 @@ import {
   isActiveChallenge,
   myLiveDuel,
   myMissionToday,
+  outingState,
   pendingPoints,
   pendingSpins,
   scoreboard,
@@ -169,7 +170,15 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const missionUnderVote = Boolean(
     mission && detail.challenges.some((c) => c.mission_id === mission.id && isActiveChallenge(c)),
   )
-  const pending = pendingSpins(events, cards, me, today)
+  // Previa y salida: dura una sola jornada
+  const isOuting = trip.kind === 'salida'
+  const outing = outingState(trip, now)
+  const canPlay = outing === 'open'
+  const nightDay = trip.trip_date ?? today
+  const nightBoard = isOuting ? scoreboard(members, events, nightDay) : []
+  const nightRow = nightBoard.find((r) => r.userId === me)
+  // En una salida no hay ruleta de comodines: se gira recién al terminar la jornada
+  const pending = isOuting ? [] : pendingSpins(events, cards, me, today)
   const activeCards = cards.filter((c) => c.user_id === me && c.status === 'active')
   const doubleActive = activeCards.some((c) => cardDef(c.card_key).effect === 'double')
   const shieldActive = activeCards.some((c) => cardDef(c.card_key).effect === 'shield')
@@ -184,7 +193,12 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           <div className="trip-title-wrap">
             <h1 className="trip-title">{trip.name}</h1>
             <p className="trip-sub">
-              {[trip.trip_date && formatTripDate(trip.trip_date), trip.place, `${members.length} jugadores`]
+              {[
+                isOuting && '🌙 Previa y salida',
+                trip.trip_date && formatTripDate(trip.trip_date),
+                trip.place,
+                `${members.length} jugadores`,
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
@@ -202,6 +216,50 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           <p className="demo-banner"><strong>Modo demo</strong> · Probá cargar tragos, misiones y quiebres.</p>
         )}
 
+        {isOuting && outing === 'upcoming' && trip.trip_date && (
+          <div className="outing-banner">
+            <span className="outing-emoji" aria-hidden="true">🌙</span>
+            <div>
+              <strong>La salida es el {formatTripDate(trip.trip_date)}</strong>
+              <span>Ese día se habilita todo: tragos, misiones, duelos, casino… Mientras tanto, armá la carta en Reglas.</span>
+            </div>
+          </div>
+        )}
+
+        {isOuting && outing === 'finished' && (
+          <div className="outing-banner outing-banner--done">
+            <span className="outing-emoji" aria-hidden="true">🏁</span>
+            <div>
+              <strong>La salida terminó</strong>
+              <span>Todavía se pueden validar fotos, cumplir prendas y ver la galería.</span>
+            </div>
+            <ol className="podium">
+              {nightBoard.slice(0, 3).map((r, i) => (
+                <li key={r.userId} className={`podium-${i + 1}`}>
+                  <span className="podium-medal" aria-hidden="true">{r.points > 0 ? ['🥇', '🥈', '🥉'][r.rank - 1] ?? '' : ''}</span>
+                  <Avatar id={r.userId} name={r.name} size={i === 0 ? 48 : 38} />
+                  <span className="podium-name">{r.userId === me ? 'Vos' : r.name}</span>
+                  <span className="podium-pts">{r.points}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {isOuting ? (
+          <div className="stats">
+            <div className="stat">
+              <span className="stat-label">Puntos de la noche</span>
+              <span className="stat-value">{nightRow?.points ?? 0}</span>
+              {waiting !== 0 && <span className="stat-pending">⏳ {waiting > 0 ? '+' : ''}{waiting} por validar</span>}
+            </div>
+            <div className="stat">
+              <span className="stat-label">Puesto</span>
+              <span className="stat-value">{nightRow ? `${nightRow.rank}°` : '—'}</span>
+              <span className="stat-sub">de {members.length}</span>
+            </div>
+          </div>
+        ) : (
         <div className="stats">
           <div className="stat">
             <span className="stat-label">Hoy</span>
@@ -215,6 +273,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             <span className="stat-sub">{totalRow ? `${totalRow.rank}° de ${members.length}` : '—'}</span>
           </div>
         </div>
+        )}
 
         {(doubleActive || shieldActive) && (
           <p className="active-effects">
@@ -223,6 +282,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           </p>
         )}
 
+        {canPlay && (
         <div className="actions">
           <button type="button" className="action action--drink" onClick={() => setSheet('drink')}>
             <span className="action-emoji" aria-hidden="true">🍺</span>
@@ -233,6 +293,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             <span>Alguien quebró</span>
           </button>
         </div>
+        )}
 
         {pending.map((day) => (
           <button
@@ -270,7 +331,19 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         </nav>
 
         <div className="tab-panel" role="tabpanel">
-          {tab === 'play' && (
+          {tab === 'play' && !canPlay && (
+            <>
+              <section className="card-box">
+                <p className="muted center">
+                  {outing === 'upcoming'
+                    ? '🌙 Los juegos se habilitan el día de la salida.'
+                    : '🏁 La salida terminó: ya no se pueden cargar cosas nuevas.'}
+                </p>
+              </section>
+              <ForfeitsBox detail={detail} me={me} onChange={refresh} canReport={false} />
+            </>
+          )}
+          {tab === 'play' && canPlay && (
             <>
               <MissionCard
                 tripId={tripId}
@@ -285,11 +358,18 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
               <ChefRouletteBox detail={detail} me={me} onChange={refresh} />
               <CasinoBox detail={detail} me={me} now={now} isDemo={user.isDemo} onChange={refresh} />
               <ForfeitsBox detail={detail} me={me} onChange={refresh} />
-              <CardsSection cards={cards} members={members} userId={me} onChange={refresh} />
+              {!isOuting && <CardsSection cards={cards} members={members} userId={me} onChange={refresh} />}
             </>
           )}
           {tab === 'board' && (
-            <ScoreBoard members={members} events={events} cards={cards} userId={me} today={today} />
+            <ScoreBoard
+              members={members}
+              events={events}
+              cards={cards}
+              userId={me}
+              today={today}
+              singleDay={isOuting ? nightDay : undefined}
+            />
           )}
           {tab === 'feed' && (
             <ActivityFeed events={events} eventVotes={detail.eventVotes} members={members} userId={me} today={today} />

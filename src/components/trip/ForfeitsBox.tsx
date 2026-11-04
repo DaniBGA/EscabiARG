@@ -11,10 +11,12 @@ type Props = {
   detail: TripDetail
   me: string
   onChange: (message?: string) => void
+  /** Se pueden reportar infracciones nuevas (no en una salida cerrada) */
+  canReport?: boolean
 }
 
 /** Infracciones (las reporta cualquiera, valida la mayoría) y las prendas que tocan */
-export default function ForfeitsBox({ detail, me, onChange }: Props) {
+export default function ForfeitsBox({ detail, me, onChange, canReport = true }: Props) {
   const api = useApi()
   const members = detail.trip.members
   const name = (id: string) => (id === me ? 'Vos' : members.find((m) => m.user_id === id)?.profile?.display_name ?? '?')
@@ -77,9 +79,11 @@ export default function ForfeitsBox({ detail, me, onChange }: Props) {
       <p className="muted">
         ¿Alguien se levantó tarde o terminó roto? Reportalo: si la mayoría lo valida, le toca una prenda al azar.
       </p>
-      <button type="button" className="btn btn--ghost btn--block forfeit-report" onClick={() => setReporting(true)}>
-        📋 Reportar infracción
-      </button>
+      {canReport && (
+        <button type="button" className="btn btn--ghost btn--block forfeit-report" onClick={() => setReporting(true)}>
+          📋 Reportar infracción
+        </button>
+      )}
 
       {mine.length > 0 && (
         <>

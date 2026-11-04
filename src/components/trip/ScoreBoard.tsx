@@ -9,13 +9,15 @@ type Props = {
   cards: PlayerCard[]
   userId: string
   today: string
+  /** Previa y salida: una sola jornada (sin Hoy/General) */
+  singleDay?: string
 }
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-export default function ScoreBoard({ members, events, cards, userId, today }: Props) {
+export default function ScoreBoard({ members, events, cards, userId, today, singleDay }: Props) {
   const [mode, setMode] = useState<'day' | 'all'>('day')
-  const rows = scoreboard(members, events, mode === 'day' ? today : undefined)
+  const rows = scoreboard(members, events, singleDay ?? (mode === 'day' ? today : undefined))
   const names = new Map(members.map((m) => [m.user_id, m.profile?.display_name ?? '?']))
   const pastDays = [...new Set(events.map((e) => e.day))].filter((d) => d < today).sort().reverse()
   const cardsOf = (id: string) => cards.filter((c) => c.user_id === id && c.status !== 'used').length
@@ -23,11 +25,13 @@ export default function ScoreBoard({ members, events, cards, userId, today }: Pr
   return (
     <section className="card-box" aria-labelledby="board-title">
       <div className="box-head">
-        <h3 id="board-title" className="box-title">Tabla</h3>
+        <h3 id="board-title" className="box-title">{singleDay ? 'Tabla de la noche' : 'Tabla'}</h3>
+        {!singleDay && (
         <div className="segmented" role="group" aria-label="Período">
           <button type="button" aria-pressed={mode === 'day'} onClick={() => setMode('day')}>Hoy</button>
           <button type="button" aria-pressed={mode === 'all'} onClick={() => setMode('all')}>General</button>
         </div>
+        )}
       </div>
 
       <ol className="board">
@@ -44,11 +48,13 @@ export default function ScoreBoard({ members, events, cards, userId, today }: Pr
         ))}
       </ol>
 
-      {mode === 'day' && (
-        <p className="muted small">La jornada va de 6:00 a 6:00. El que más suma se lleva la ruleta.</p>
+      {singleDay ? (
+        <p className="muted small">La salida dura una sola jornada: el que más suma es el ganador de la noche.</p>
+      ) : mode === 'day' && (
+        <p className="muted small">El que más suma en la jornada se lleva la ruleta de comodines.</p>
       )}
 
-      {mode === 'all' && pastDays.length > 0 && (
+      {!singleDay && mode === 'all' && pastDays.length > 0 && (
         <>
           <h4 className="sub-title">Ganadores por jornada</h4>
           <ul className="winners">

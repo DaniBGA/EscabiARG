@@ -64,6 +64,8 @@ const MESSAGES: Record<string, string> = {
   DUEL_ALREADY_DONE: 'Ya terminaste tu parte del duelo.',
   DUEL_FALSE_START: '¡Largada en falso! Esperá a que arranque.',
   DUEL_SHOTS_CAP: 'Llegaste al máximo de 3 shots.',
+  OUTING_NOT_STARTED: 'Esta salida todavía no arrancó: se habilita el día de la salida.',
+  OUTING_FINISHED: 'Esta salida ya terminó 🏁',
 }
 
 const AUTH_MESSAGES: [RegExp, string][] = [

@@ -10,7 +10,7 @@ import TripCard from '../components/TripCard'
 import { FriendsIcon, PlusIcon } from '../components/icons'
 import './Home.css'
 
-type Panel = 'none' | 'create' | 'friends' | 'profile'
+type Panel = 'none' | 'create' | 'create-outing' | 'friends' | 'profile'
 
 export default function Home({ user }: { user: AppUser }) {
   const userId = user.id
@@ -129,25 +129,34 @@ export default function Home({ user }: { user: AppUser }) {
           </div>
         )}
 
-        <button type="button" className="create-trip" onClick={() => setPanel('create')}>
-          <span className="create-trip-icon"><PlusIcon size={28} /></span>
-          <span className="create-trip-text">
-            <strong>Crear viaje</strong>
-            <span>Armá la juntada e invitá a tus amigos</span>
-          </span>
-        </button>
+        <div className="create-row">
+          <button type="button" className="create-trip" onClick={() => setPanel('create')}>
+            <span className="create-trip-icon"><PlusIcon size={28} /></span>
+            <span className="create-trip-text">
+              <strong>Crear viaje</strong>
+              <span>Varios días, con tus amigos</span>
+            </span>
+          </button>
+          <button type="button" className="create-trip create-trip--night" onClick={() => setPanel('create-outing')}>
+            <span className="create-trip-icon" aria-hidden="true">🌙</span>
+            <span className="create-trip-text">
+              <strong>Previa y salida</strong>
+              <span>Lo mismo, pero solo por una noche</span>
+            </span>
+          </button>
+        </div>
 
         {error && <p className="notice notice--error" role="alert">{error}</p>}
 
         <section className="trips" aria-labelledby="trips-title">
-          <h2 id="trips-title" className="trips-title">Tus viajes</h2>
+          <h2 id="trips-title" className="trips-title">Tus viajes y salidas</h2>
 
           {trips === null ? (
             <p className="trips-empty">Cargando…</p>
           ) : trips.length === 0 ? (
             <div className="trips-empty">
               <span className="trips-empty-emoji" aria-hidden="true">🍺</span>
-              <p>Todavía no hay viajes. ¡Creá el primero!</p>
+              <p>Todavía no hay planes. ¡Armá un viaje o una salida!</p>
             </div>
           ) : (
             <ul className="trips-list">
@@ -162,7 +171,9 @@ export default function Home({ user }: { user: AppUser }) {
       </main>
 
       <CreateTripSheet
-        open={panel === 'create'}
+        key={panel === 'create-outing' ? 'salida' : 'viaje'}
+        kind={panel === 'create-outing' ? 'salida' : 'viaje'}
+        open={panel === 'create' || panel === 'create-outing'}
         onClose={() => setPanel('none')}
         friends={friends}
         onOpenFriends={() => setPanel('friends')}

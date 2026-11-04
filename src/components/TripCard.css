@@ -135,3 +135,21 @@
   font-size: 0.8rem;
   font-weight: 800;
 }
+
+.trip-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trip-kind {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: rgba(255, 246, 220, 0.08);
+}
+
+.trip-kind--salida { background: rgba(130, 100, 220, 0.22); color: #dcd0ff; }
+.trip-kind--open { background: rgba(255, 90, 70, 0.2); color: #ffc4b8; }
+.trip-kind--finished { opacity: 0.75; }

@@ -264,3 +264,23 @@
 
 .home-pending strong { color: #ffd56b; }
 .home-pending span { font-size: 0.88rem; opacity: 0.85; }
+
+.create-row {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .create-row { grid-template-columns: 1fr 1fr; }
+}
+
+.create-trip--night {
+  background: linear-gradient(135deg, #3b2a6b 0%, #23163f 100%);
+  color: #f3ecff;
+  box-shadow: 0 10px 30px rgba(59, 42, 107, 0.35);
+}
+
+.create-trip--night .create-trip-icon {
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 1.7rem;
+}

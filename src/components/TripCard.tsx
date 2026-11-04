@@ -1,4 +1,5 @@
 import type { Trip } from '../lib/api'
+import { outingState } from '../lib/game'
 import { markCameFromHome, tripPath } from '../lib/router'
 import Avatar from './Avatar'
 import { CalendarIcon, PinIcon } from './icons'
@@ -18,6 +19,7 @@ function formatDate(iso: string) {
 export default function TripCard({ trip, myId, pending = 0 }: { trip: Trip; myId: string; pending?: number }) {
   const owner = trip.members.find((m) => m.role === 'owner')
   const isMine = trip.owner_id === myId
+  const outing = outingState(trip)
   const members = [...trip.members].sort(
     (a, b) => Number(b.role === 'owner') - Number(a.role === 'owner'),
   )
@@ -28,8 +30,18 @@ export default function TripCard({ trip, myId, pending = 0 }: { trip: Trip; myId
     <a className="trip-card" href={tripPath(trip.id)} onClick={markCameFromHome}>
       <div className="trip-card-top">
         <h3 className="trip-name">{trip.name}</h3>
-        <span className={`trip-role${isMine ? ' trip-role--mine' : ''}`}>
-          {isMine ? 'Organizás vos' : `Invita ${owner?.profile?.display_name ?? 'un amigo'}`}
+        <span className="trip-badges">
+          <span className={`trip-kind trip-kind--${trip.kind}`}>
+            {trip.kind === 'salida' ? '🌙 Previa y salida' : '🧳 Viaje'}
+          </span>
+          {trip.kind === 'salida' && (
+            <span className={`trip-kind trip-kind--${outing}`}>
+              {outing === 'open' ? '🔴 Hoy' : outing === 'upcoming' ? 'Próximamente' : '🏁 Terminada'}
+            </span>
+          )}
+          <span className={`trip-role${isMine ? ' trip-role--mine' : ''}`}>
+            {isMine ? 'Organizás vos' : `Invita ${owner?.profile?.display_name ?? 'un amigo'}`}
+          </span>
         </span>
       </div>
 
