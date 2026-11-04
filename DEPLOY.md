@@ -133,7 +133,48 @@ si algo no aparece exacto, buscá el equivalente.
 | Remitente inválido / no verificado (`sender … not valid`) | El *Sender email* de Supabase no coincide con el remitente verificado en Brevo |
 | `SMTP account is not yet activated` | Brevo todavía no te habilitó el envío transaccional: completá el perfil y pedí la activación a soporte desde tu cuenta de Brevo (puede tardar 1–2 días hábiles) |
 | Timeout o no conecta | Probá el puerto `2525` |
-| No hay error pero no llega | Está en spam: con Gmail como remitente pasa seguido. La solución es un dominio propio |
+| Supabase dice `user confirmation requested` (200) pero no llega ni a spam | Supabase ya le pasó el mail a Brevo: el problema está entre Brevo y tu casilla. Mirá el estado en los logs de Brevo (abajo) |
+
+**Supabase dice 200 pero el mail no llega.** En Brevo abrí los logs de mails
+transaccionales (**Transactional → Email → Logs**, o **Statistics → Logs**) y buscá
+tu dirección:
+
+- **No aparece nada:** el mail no pasó por Brevo. Volvé a **SMTP Settings** en Supabase
+  y revisá que **Enable custom SMTP** haya quedado activado y guardado.
+- **Hard bounce / Blocked / Error:** abrí el detalle. Si el remitente es un `@gmail.com`
+  (o Hotmail, Yahoo), Gmail rechaza el mail porque llega desde servidores de Brevo y
+  no de Google (falla DMARC). Se arregla con un dominio propio autenticado en Brevo, o
+  mandando con tu Gmail directamente (paso 3.1.d).
+- **Blocked por blocklist:** después de un rebote Brevo bloquea esa dirección y no le
+  manda más. Sacala de la lista de contactos bloqueados de Transactional.
+- **Delivered:** llegó. En Gmail buscá `in:anywhere EscabiARG` (puede estar en
+  *Promociones*, *Actualizaciones* o *Spam*).
+
+
+### 3.1.d Sin dominio propio: mandar con tu Gmail
+
+Si no tenés dominio, la forma gratis más confiable es que Supabase mande los mails
+**desde tu propia cuenta de Gmail**: salen de los servidores de Google y no los
+rechazan. Límite: unos 500 mails por día, de sobra para un grupo de amigos.
+
+1. En <https://myaccount.google.com/security> activá la **Verificación en dos pasos**
+   (sin eso Google no deja crear contraseñas de aplicación).
+2. Entrá a <https://myaccount.google.com/apppasswords> → nombre `Supabase EscabiARG` →
+   **Crear** → copiá la contraseña de 16 letras (sin espacios). Se muestra una sola vez.
+3. Supabase → **Authentication → Emails → SMTP Settings** (reemplaza lo de Brevo):
+
+   | Campo | Valor |
+   | --- | --- |
+   | Sender email address | tu Gmail (el mismo de la cuenta) |
+   | Sender name | `EscabiARG` |
+   | Host | `smtp.gmail.com` |
+   | Port number | `587` (si no anda, `465`) |
+   | Username | tu Gmail completo |
+   | Password | la contraseña de aplicación del paso 2 (no tu contraseña de Google) |
+
+   **Save changes** y probá registrarte con un mail nuevo.
+4. Los mails salen con tu dirección como remitente. Si cambiás la contraseña de Google,
+   las contraseñas de aplicación se borran y hay que crear otra.
 
 ### 3.1.c Mails propios con SendGrid (pago)
 
