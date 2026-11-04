@@ -64,6 +64,7 @@ export type Drink = {
   trip_id: string
   name: string
   emoji: string
+  /** Negativo = trago que resta (agua, Alikal…): no se carga, te queman */
   points: number
 }
 
@@ -75,7 +76,8 @@ export type TripEvent = {
   trip_id?: string
   user_id: string
   actor_id: string
-  kind: 'drink' | 'mission' | 'quiebre' | 'card' | 'infraction' | 'chef' | 'casino' | 'forfeit' | 'duel'
+  /** 'burn' = alguien te quemó tomando algo que resta */
+  kind: 'drink' | 'mission' | 'quiebre' | 'card' | 'infraction' | 'chef' | 'casino' | 'forfeit' | 'duel' | 'burn'
   points: number
   day: string
   title: string
@@ -276,6 +278,8 @@ export type Api = {
   chooseMission(tripId: string, difficulty: Difficulty): Promise<void>
   completeMission(tripId: string, photoPath: string | null): Promise<void>
   reportQuiebre(tripId: string, userId: string, photoPaths: string[]): Promise<void>
+  /** Quemar: foto de alguien tomando algo que resta */
+  burnPlayer(tripId: string, userId: string, drinkId: string, photoPath: string): Promise<void>
   spinRoulette(tripId: string, day: string): Promise<CardKey>
   redeemCard(cardId: string, targetId: string | null): Promise<void>
 
@@ -603,6 +607,9 @@ export const supabaseApi: Api = {
   },
   async reportQuiebre(tripId, userId, photoPaths) {
     await rpc('report_quiebre', { p_trip: tripId, p_user: userId, p_photos: photoPaths })
+  },
+  async burnPlayer(tripId, userId, drinkId, photoPath) {
+    await rpc('burn_player', { p_trip: tripId, p_user: userId, p_drink: drinkId, p_photo: photoPath })
   },
   async spinRoulette(tripId, day) {
     return (await rpc('spin_roulette', { p_trip: tripId, p_day: day })) as CardKey

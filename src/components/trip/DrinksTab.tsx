@@ -13,7 +13,9 @@ type Props = {
   onChange: (message?: string) => void
 }
 
-const EMOJIS = ['🍺', '🥃', '🍸', '🍷', '🍹', '🥂', '🍾', '🧉', '🔥', '💧']
+const EMOJIS = ['🍺', '🥃', '🍸', '🍷', '🍹', '🥂', '🍾', '🧉', '🔥']
+/** Para los que restan: agua, algo para la panza, gaseosa sola… */
+const PENALTY_EMOJIS = ['💧', '💊', '🍵', '🥤', '☕', '🧃']
 
 const SUGGESTED: DrinkInput[] = [
   { name: 'Birra', emoji: '🍺', points: 5 },
@@ -21,7 +23,14 @@ const SUGGESTED: DrinkInput[] = [
   { name: 'Gin tonic', emoji: '🍸', points: 8 },
   { name: 'Fernet con coca', emoji: '🥃', points: 10 },
   { name: 'Shot', emoji: '🔥', points: 12 },
-  { name: 'Vaso de agua', emoji: '💧', points: 2 },
+]
+
+/** Los que restan: si te agarran tomando esto, te queman */
+const SUGGESTED_PENALTIES: DrinkInput[] = [
+  { name: 'Vaso de agua', emoji: '💧', points: -5 },
+  { name: 'Gaseosa sola', emoji: '🥤', points: -3 },
+  { name: 'Té de boldo', emoji: '🍵', points: -8 },
+  { name: 'Alikal', emoji: '💊', points: -10 },
 ]
 
 type PointRule = Exclude<keyof TripRules, 'day_cutoff_hour'>
@@ -43,18 +52,28 @@ function DrinkForm({ initial, onSave, onCancel }: {
 }) {
   const [emoji, setEmoji] = useState(initial.emoji)
   const [name, setName] = useState(initial.name)
-  const [points, setPoints] = useState(String(initial.points || ''))
+  const [points, setPoints] = useState(String(Math.abs(initial.points) || ''))
+  /** true = resta puntos (agua, Alikal…) */
+  const [penalty, setPenalty] = useState(initial.points < 0)
   const [busy, setBusy] = useState(false)
 
   const pts = Number(points)
   const valid = name.trim().length > 0 && Number.isInteger(pts) && pts >= 1 && pts <= 500
+  const emojis = penalty ? PENALTY_EMOJIS : EMOJIS
+
+  const switchKind = (next: boolean) => {
+    if (next === penalty) return
+    setPenalty(next)
+    const list = next ? PENALTY_EMOJIS : EMOJIS
+    if (!list.includes(emoji)) setEmoji(list[0])
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!valid) return
     setBusy(true)
     try {
-      await onSave({ id: initial.id, emoji, name: name.trim(), points: pts })
+      await onSave({ id: initial.id, emoji, name: name.trim(), points: penalty ? -pts : pts })
       if (!initial.id) {
         setName('')
         setPoints('')
@@ -68,8 +87,19 @@ function DrinkForm({ initial, onSave, onCancel }: {
 
   return (
     <form className="drink-form" onSubmit={submit}>
+      <div className="seg" role="group" aria-label="¿Suma o resta?">
+        <button type="button" className={`seg-btn${!penalty ? ' is-selected' : ''}`} aria-pressed={!penalty} onClick={() => switchKind(false)}>
+          ➕ Suma
+        </button>
+        <button type="button" className={`seg-btn seg-btn--neg${penalty ? ' is-selected' : ''}`} aria-pressed={penalty} onClick={() => switchKind(true)}>
+          ➖ Resta
+        </button>
+      </div>
+      {penalty && (
+        <p className="muted small">No se carga: si alguien te agarra tomándolo, te quema con una foto 🔥</p>
+      )}
       <div className="emoji-row" role="group" aria-label="Ícono">
-        {EMOJIS.map((em) => (
+        {emojis.map((em) => (
           <button
             key={em}
             type="button"
@@ -84,10 +114,16 @@ function DrinkForm({ initial, onSave, onCancel }: {
       <div className="drink-form-row">
         <label className="field">
           <span>Nombre</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Fernet con coca" maxLength={40} required />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={penalty ? 'Ej: Alikal' : 'Ej: Fernet con coca'}
+            maxLength={40}
+            required
+          />
         </label>
         <label className="field field--pts">
-          <span>Puntos</span>
+          <span>{penalty ? 'Resta' : 'Puntos'}</span>
           <input
             type="number"
             inputMode="numeric"
@@ -95,7 +131,7 @@ function DrinkForm({ initial, onSave, onCancel }: {
             max={500}
             value={points}
             onChange={(e) => setPoints(e.target.value)}
-            placeholder="10"
+            placeholder={penalty ? '5' : '10'}
             required
           />
         </label>
@@ -147,10 +183,37 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
     run(() => api.archiveDrink(d.id), 'Trago eliminado').catch(() => undefined)
   }
 
-  const addSuggested = () =>
+  const addSuggested = (list: DrinkInput[], message: string) =>
     run(async () => {
-      for (const d of SUGGESTED) await api.saveDrink(tripId, d)
-    }, 'Carta sugerida cargada 🍻').catch(() => undefined)
+      for (const d of list) await api.saveDrink(tripId, d)
+    }, message).catch(() => undefined)
+
+  const plus = drinks.filter((d) => d.points > 0)
+  const minus = drinks.filter((d) => d.points < 0)
+
+  const row = (d: Drink) =>
+    editing === d.id ? (
+      <li key={d.id} className="drink-row is-editing">
+        <DrinkForm initial={d} onSave={save} onCancel={() => setEditing(null)} />
+      </li>
+    ) : (
+      <li key={d.id} className="drink-row">
+        <span className="drink-emoji" aria-hidden="true">{d.emoji}</span>
+        <span className="drink-name">{d.name}</span>
+        <span className="leader" aria-hidden="true" />
+        <span className={`pts-chip${d.points < 0 ? ' is-neg' : ''}`}>{d.points > 0 ? `+${d.points}` : `−${-d.points}`}</span>
+        {isOwner && (
+          <span className="drink-actions">
+            <button type="button" className="icon-btn icon-btn--sm" aria-label={`Editar ${d.name}`} onClick={() => setEditing(d.id)}>
+              <EditIcon />
+            </button>
+            <button type="button" className="icon-btn icon-btn--sm" aria-label={`Eliminar ${d.name}`} onClick={() => remove(d)}>
+              <TrashIcon />
+            </button>
+          </span>
+        )}
+      </li>
+    )
 
   const parsedRules = {
     ...(Object.fromEntries(RULE_FIELDS.map((f) => [f.key, Number(ruleDraft[f.key])])) as Record<PointRule, number>),
@@ -180,38 +243,37 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
           <div className="empty-box">
             <p>Todavía no hay tragos cargados.</p>
             {isOwner && (
-              <button type="button" className="btn btn--ghost" onClick={addSuggested}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => addSuggested([...SUGGESTED, ...SUGGESTED_PENALTIES], 'Carta sugerida cargada 🍻')}
+              >
                 Usar carta sugerida
               </button>
             )}
           </div>
         ) : (
-          <ul className="drink-list">
-            {drinks.map((d) =>
-              editing === d.id ? (
-                <li key={d.id} className="drink-row is-editing">
-                  <DrinkForm initial={d} onSave={save} onCancel={() => setEditing(null)} />
-                </li>
-              ) : (
-                <li key={d.id} className="drink-row">
-                  <span className="drink-emoji" aria-hidden="true">{d.emoji}</span>
-                  <span className="drink-name">{d.name}</span>
-                  <span className="leader" aria-hidden="true" />
-                  <span className="pts-chip">+{d.points}</span>
-                  {isOwner && (
-                    <span className="drink-actions">
-                      <button type="button" className="icon-btn icon-btn--sm" aria-label={`Editar ${d.name}`} onClick={() => setEditing(d.id)}>
-                        <EditIcon />
-                      </button>
-                      <button type="button" className="icon-btn icon-btn--sm" aria-label={`Eliminar ${d.name}`} onClick={() => remove(d)}>
-                        <TrashIcon />
-                      </button>
-                    </span>
-                  )}
-                </li>
-              ),
+          <>
+            {plus.length > 0 && <ul className="drink-list">{plus.map(row)}</ul>}
+
+            <h4 className="sub-title sub-title--neg">🔥 Los que restan</h4>
+            <p className="muted small">
+              No se cargan: si agarrás a alguien tomando uno de estos, sacale una foto con <strong>Quemar</strong>.
+            </p>
+            {minus.length > 0 ? (
+              <ul className="drink-list drink-list--neg">{minus.map(row)}</ul>
+            ) : isOwner ? (
+              <button
+                type="button"
+                className="btn btn--ghost btn--block"
+                onClick={() => addSuggested(SUGGESTED_PENALTIES, '💧 Ahora el agua y el Alikal restan')}
+              >
+                Agregar los sugeridos (agua, boldo, Alikal…)
+              </button>
+            ) : (
+              <p className="muted small">Todavía no hay ninguno: el organizador los puede agregar.</p>
             )}
-          </ul>
+          </>
         )}
 
         {isOwner && editing === null && (

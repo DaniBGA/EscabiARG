@@ -20,8 +20,9 @@ import {
 } from '../lib/game'
 import { goHome } from '../lib/router'
 import Avatar from '../components/Avatar'
-import { BackIcon, DizzyIcon, MugIcon } from '../components/icons'
+import { BackIcon, DizzyIcon, FlameIcon, MugIcon } from '../components/icons'
 import ActivityFeed from '../components/trip/ActivityFeed'
+import BurnSheet from '../components/trip/BurnSheet'
 import CardsSection from '../components/trip/CardsSection'
 import CasinoBox from '../components/trip/CasinoBox'
 import ChefRouletteBox from '../components/trip/ChefRouletteBox'
@@ -42,7 +43,7 @@ import ScoreBoard from '../components/trip/ScoreBoard'
 import './TripScreen.css'
 
 type Tab = 'play' | 'board' | 'feed' | 'gallery' | 'drinks'
-type SheetName = 'none' | 'drink' | 'quiebre' | 'roulette'
+type SheetName = 'none' | 'drink' | 'quiebre' | 'burn' | 'roulette'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'play', label: 'Jugar' },
@@ -431,6 +432,14 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             <span className="action-emoji" aria-hidden="true"><DizzyIcon size={26} /></span>
             <span>Alguien quebró</span>
           </button>
+          <button type="button" className="action action--burn" onClick={() => setSheet('burn')}>
+            <span className="action-emoji" aria-hidden="true"><FlameIcon size={26} /></span>
+            <span>
+              Quemar
+              <br />
+              <small>Agarrá a alguien tomando agua o Alikal</small>
+            </span>
+          </button>
         </div>
         )}
 
@@ -555,6 +564,17 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         members={members}
         penalty={trip.quiebre_penalty}
         onDone={refresh}
+      />
+      <BurnSheet
+        open={sheet === 'burn'}
+        onClose={() => setSheet('none')}
+        tripId={tripId}
+        userId={me}
+        members={members}
+        drinks={drinks}
+        isOwner={isOwner}
+        onDone={refresh}
+        onGoToDrinks={() => setTab('drinks')}
       />
       <RouletteSheet
         open={sheet === 'roulette'}

@@ -11,17 +11,18 @@ type Props = {
   today: string
 }
 
-type Filter = 'all' | 'drink' | 'quiebre' | 'mission' | 'more'
+type Filter = 'all' | 'drink' | 'quiebre' | 'burn' | 'mission' | 'more'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Todas' },
   { key: 'drink', label: '🍺 Tragos' },
   { key: 'quiebre', label: '😵 Quebradas' },
+  { key: 'burn', label: '🔥 Quemadas' },
   { key: 'mission', label: '🎯 Misiones' },
   { key: 'more', label: '🎰 Otras' },
 ]
 
-const MAIN_KINDS = ['drink', 'quiebre', 'mission']
+const MAIN_KINDS = ['drink', 'quiebre', 'burn', 'mission']
 const matches = (f: Filter, kind: string) =>
   f === 'all' || (f === 'more' ? !MAIN_KINDS.includes(kind) : kind === f)
 
@@ -112,6 +113,8 @@ export default function GalleryTab({ events, members, userId, today }: Props) {
               <p className="muted small">
                 {formatDay(open.event.day, today)} · {formatTime(open.event.created_at)}
                 {open.event.kind === 'quiebre' && open.event.actor_id !== open.event.user_id && ` · la sacó ${name(open.event.actor_id)}`}
+                {open.event.kind === 'burn' &&
+                  (open.event.actor_id === userId ? ' · 🔥 quemada tuya' : ` · 🔥 quemada de ${name(open.event.actor_id)}`)}
                 {open.event.status === 'pending' && ' · ⏳ esperando validación'}
                 {open.event.status === 'rejected' && ' · ❌ no validada'}
               </p>

@@ -68,8 +68,13 @@ export default function ActivityFeed({ events, eventVotes, members, userId, toda
                       ? e.title.toLowerCase()
                       : e.kind === 'infraction'
                         ? `· infracción: ${e.title}`
-                        : `· ${e.title}`}
+                        : e.kind === 'burn'
+                          ? `· 🔥 tomando ${e.title}`
+                          : `· ${e.title}`}
                   </p>
+                  {e.kind === 'burn' && (
+                    <p className="feed-detail">{e.actor_id === userId ? 'Quemada tuya 😈' : `Quemada de ${name(e.actor_id)}`}</p>
+                  )}
                   {e.detail && <p className="feed-detail">{e.kind === 'duel' ? `contra ${name(e.actor_id)} · ${e.detail}` : `“${e.detail}”`}</p>}
                   {(e.kind === 'quiebre' || e.kind === 'infraction') && e.actor_id !== e.user_id && (
                     <p className="feed-detail">Lo reportó {name(e.actor_id)}</p>

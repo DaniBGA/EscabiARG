@@ -54,7 +54,7 @@ import { SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
 
 export const DEMO_USER_ID = 'demo-me'
 const STORAGE_KEY = 'escabiarg:demo-data'
-const VERSION = 6
+const VERSION = 7
 
 type StoredTrip = Omit<Trip, 'members'> &
   TripRules & {
@@ -162,9 +162,12 @@ function seed(): DemoData {
     { id: 'd-fernet', trip_id: T1, name: 'Fernet con coca', emoji: '🥃', points: 10, archived: false },
     { id: 'd-gin', trip_id: T1, name: 'Gin tonic', emoji: '🍸', points: 8, archived: false },
     { id: 'd-vino', trip_id: T1, name: 'Vino', emoji: '🍷', points: 6, archived: false },
-    { id: 'd-agua', trip_id: T1, name: 'Vaso de agua', emoji: '💧', points: 2, archived: false },
+    { id: 'd-agua', trip_id: T1, name: 'Vaso de agua', emoji: '💧', points: -5, archived: false },
+    { id: 'd-alikal', trip_id: T1, name: 'Alikal', emoji: '💊', points: -10, archived: false },
+    { id: 'd-boldo', trip_id: T1, name: 'Té de boldo', emoji: '🍵', points: -8, archived: false },
     { id: 'd2-birra', trip_id: T2, name: 'Birra', emoji: '🍺', points: 5, archived: false },
     { id: 'd2-fernet', trip_id: T2, name: 'Fernet con coca', emoji: '🥃', points: 10, archived: false },
+    { id: 'd2-agua', trip_id: T2, name: 'Vaso de agua', emoji: '💧', points: -5, archived: false },
   ]
 
   const ev = (
@@ -215,6 +218,7 @@ function seed(): DemoData {
       photo_paths: [],
     }),
     ev('demo-juli', 'drink', 8, yesterday, 21 * 60, 'Gin tonic', '🍸'),
+    ev('demo-tincho', 'burn', -5, yesterday, 21 * 60 + 30, 'Vaso de agua', '💧', { actor_id: 'demo-juli' }),
     ev('demo-tincho', 'drink', 10, yesterday, 22 * 60, 'Fernet con coca', '🥃'),
     ev('demo-me', 'drink', 10, yesterday, 22 * 60 + 10, 'Fernet con coca', '🥃'),
     ev('demo-tincho', 'drink', 5, yesterday, 23 * 60, 'Birra', '🍺'),
@@ -1000,7 +1004,7 @@ export const demoApi: Api = {
     const data = load()
     requireOwner(data, tripId)
     const row = { name: drink.name.trim().slice(0, 40), emoji: drink.emoji, points: Math.round(drink.points) }
-    if (!row.name || row.points < 1 || row.points > 500) throw new Error('Datos inválidos')
+    if (!row.name || row.points === 0 || Math.abs(row.points) > 500) throw new Error('Datos inválidos')
     const existing = drink.id && data.drinks.find((d) => d.id === drink.id && d.trip_id === tripId)
     if (existing) Object.assign(existing, row)
     else data.drinks.push({ id: newId(), trip_id: tripId, archived: false, ...row })
@@ -1039,6 +1043,7 @@ export const demoApi: Api = {
     requireOpen(data, tripId)
     const drink = data.drinks.find((d) => d.id === drinkId && d.trip_id === tripId && !d.archived)
     if (!drink) throw new Error('DRINK_NOT_FOUND')
+    if (drink.points < 0) throw new Error('DRINK_IS_PENALTY')
     checkPhoto(data, tripId, photoPath)
     const double = data.cards.find(
       (c) => c.trip_id === tripId && c.user_id === data.me.id && c.status === 'active' && cardDef(c.card_key).effect === 'double',
@@ -1109,6 +1114,37 @@ export const demoApi: Api = {
       detail: m.mission,
       photo_paths: photoPath ? [photoPath] : [],
     })
+    save(data)
+  },
+
+  async burnPlayer(tripId, userId, drinkId, photoPath) {
+    await wait()
+    const data = load()
+    requireOpen(data, tripId)
+    if (userId === data.me.id) throw new Error('BURN_SELF')
+    if (!membersOf(data, tripId).some((m) => m.user_id === userId)) throw new Error('NOT_TRIP_MEMBER')
+    const drink = data.drinks.find((d) => d.id === drinkId && d.trip_id === tripId && !d.archived)
+    if (!drink) throw new Error('DRINK_NOT_FOUND')
+    if (drink.points >= 0) throw new Error('DRINK_NOT_PENALTY')
+    checkPhoto(data, tripId, photoPath)
+    const recent = data.events.some(
+      (e) =>
+        e.trip_id === tripId && e.kind === 'burn' && e.user_id === userId && e.title === drink.name &&
+        e.status !== 'rejected' && Date.now() - Date.parse(e.created_at) < 5 * 60_000,
+    )
+    if (recent) throw new Error('BURN_RECENT')
+    const e = addEvent(data, {
+      trip_id: tripId,
+      user_id: userId,
+      actor_id: data.me.id,
+      kind: 'burn',
+      points: drink.points,
+      title: drink.name,
+      emoji: drink.emoji,
+      photo_paths: [photoPath],
+      status: 'pending',
+    })
+    resolveEvent(data, e)
     save(data)
   },
 

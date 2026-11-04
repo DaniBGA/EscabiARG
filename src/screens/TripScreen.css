@@ -209,6 +209,29 @@
 
 .action--quiebre:active { box-shadow: 0 1px 0 var(--red-deep); }
 
+/* Quemar: botón ancho, carbón con brasa */
+.action--burn {
+  grid-column: 1 / -1;
+  min-height: 54px;
+  border-color: #000;
+  background:
+    radial-gradient(120% 140% at 50% 120%, rgba(255, 106, 0, 0.35), transparent 60%),
+    var(--ink-2) var(--grain);
+  color: #ffb36b;
+  box-shadow: 0 5px 0 #000;
+}
+
+.action--burn:active { box-shadow: 0 1px 0 #000; }
+.action--burn .action-emoji { color: #ff7a2b; }
+.action--burn small {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgba(255, 220, 190, 0.75);
+}
+
 /* Ganaste la jornada */
 .spin-banner {
   display: flex;
@@ -762,6 +785,7 @@
 .feed-emoji--infraction { background: #f2a594; }
 .feed-emoji--card { background: #d9c3ef; }
 .feed-emoji--duel { background: #f6d27a; }
+.feed-emoji--burn { background: #ffc49a; }
 .feed-emoji--casino { background: #b9cfee; }
 .feed-emoji--chef { background: #cfe5c4; }
 
@@ -948,6 +972,37 @@
   gap: 8px;
 }
 
+/* ¿Suma o resta? */
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.seg-btn {
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  color: var(--chalk-dim);
+  font-family: var(--font-label);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.seg-btn + .seg-btn { border-left: 2px solid var(--line); }
+.seg-btn.is-selected { background: var(--amber); color: var(--ink); }
+.seg-btn--neg.is-selected { background: #ff8b76; color: var(--ink); }
+
+/* Los que restan */
+.sub-title--neg { color: #ff8b76; }
+.card-box--board .pts-chip.is-neg { color: #ff9b86; }
+.drink-list--neg { margin-top: 4px; }
+
 /* Reglas */
 .rules-form {
   display: flex;
@@ -1038,6 +1093,8 @@
 }
 
 .drink-choice-pts { font-family: var(--font-hand); font-size: 1.25rem; line-height: 1; color: var(--amber); }
+.drink-choice--neg .drink-choice-pts { color: #ff8b76; }
+.drink-choice--neg.is-selected { border-color: #ff8b76; background: rgba(255, 139, 118, 0.12); }
 
 .who-grid {
   display: grid;

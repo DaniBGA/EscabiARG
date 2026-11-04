@@ -47,6 +47,7 @@ Necesitás:
 > | 5 | `20261108000000_duelos.sql` |
 > | 6 | `20261109000000_previa_y_salida.sql` |
 > | 7 | `20261110000000_tiempo_real.sql` |
+> | 8 | `20261111000000_quemar.sql` |
 
 ### 2.b Tiempo real
 
@@ -305,7 +306,8 @@ Hacelo desde el celular, que es donde se va a usar:
 3. En otro celular (o una ventana de incógnito) creá **otra cuenta**.
 4. Con la primera: **Amigos** → copiá tu código. Con la segunda: agregalo por código.
 5. Con la primera: **Crear viaje** (o **Previa y salida**) invitando a la segunda.
-6. En el viaje → **Reglas → Usar carta sugerida**.
+6. En el viaje → **Reglas → Usar carta sugerida** (trae también los que restan: agua,
+   gaseosa sola, té de boldo y Alikal).
 7. **Cargar trago** → elegí uno → **Abrir cámara** → el navegador te pide permiso
    para la cámara: **Permitir** → sacá la foto → cargalo.
 8. Con la segunda cuenta entrá al viaje → **Pendientes** → mirá la foto → **Vale**.
