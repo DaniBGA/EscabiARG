@@ -8,6 +8,7 @@ import {
   cardDef,
   formatDay,
   isActiveChallenge,
+  myLiveDuel,
   myMissionToday,
   pendingPoints,
   pendingSpins,
@@ -22,6 +23,8 @@ import CardsSection from '../components/trip/CardsSection'
 import CasinoBox from '../components/trip/CasinoBox'
 import ChefRouletteBox from '../components/trip/ChefRouletteBox'
 import DrinksTab from '../components/trip/DrinksTab'
+import DuelOverlay from '../components/trip/DuelOverlay'
+import DuelsBox from '../components/trip/DuelsBox'
 import ForfeitsBox from '../components/trip/ForfeitsBox'
 import ListsEditor from '../components/trip/ListsEditor'
 import GalleryTab from '../components/trip/GalleryTab'
@@ -48,6 +51,8 @@ const TABS: { key: Tab; label: string }[] = [
 const REFRESH_MS = 20_000
 /** Mientras hay votaciones o fotos por validar se refresca más seguido */
 const FAST_REFRESH_MS = 3_000
+/** Durante un duelo tuyo, casi en vivo */
+const DUEL_REFRESH_MS = 1_200
 
 function formatTripDate(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
@@ -64,11 +69,18 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const [spinDay, setSpinDay] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [clockOffset, setClockOffset] = useState(0)
+  const [closedDuels, setClosedDuels] = useState<Record<string, boolean>>({})
   const toastTimer = useRef<number | undefined>(undefined)
 
   const load = useCallback(async () => {
     try {
-      setDetail(await api.getTrip(tripId))
+      const t0 = Date.now()
+      const d = await api.getTrip(tripId)
+      const t1 = Date.now()
+      // Reloj del servidor ≈ hora de respuesta − mitad de la demora
+      setClockOffset(Date.parse(d.serverTime) - (t0 + t1) / 2)
+      setDetail(d)
       setError(null)
     } catch (err) {
       setError(friendlyError(err))
@@ -83,6 +95,11 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         activeCasino(detail.casinoSessions)),
   )
   const counting = Boolean(detail && (detail.challenges.some(isActiveChallenge) || activeCasino(detail.casinoSessions)))
+  const inDuel = Boolean(
+    detail?.duels.some(
+      (d) => (d.status === 'live' || d.status === 'invited') && (d.challenger_id === user.id || d.opponent_id === user.id),
+    ),
+  )
 
   useEffect(() => {
     load()
@@ -93,9 +110,9 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
     const id = window.setInterval(() => {
       setNow(Date.now())
       if (!document.hidden) load()
-    }, fast ? FAST_REFRESH_MS : REFRESH_MS)
+    }, inDuel ? DUEL_REFRESH_MS : fast ? FAST_REFRESH_MS : REFRESH_MS)
     return () => window.clearInterval(id)
-  }, [load, fast])
+  }, [load, fast, inDuel])
 
   // Cuenta regresiva de las votaciones
   useEffect(() => {
@@ -264,6 +281,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
                 onChange={refresh}
               />
               <MissionsBoard detail={detail} me={me} today={today} now={now} onChange={refresh} />
+              <DuelsBox detail={detail} me={me} today={today} onChange={refresh} />
               <ChefRouletteBox detail={detail} me={me} onChange={refresh} />
               <CasinoBox detail={detail} me={me} now={now} isDemo={user.isDemo} onChange={refresh} />
               <ForfeitsBox detail={detail} me={me} onChange={refresh} />
@@ -323,6 +341,32 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         today={today}
         onDone={showToast}
       />
+
+      {(() => {
+        // Duelo en vivo, o el último que terminó y todavía no cerraste
+        const live = myLiveDuel(detail.duels, me)
+        const justDone = detail.duels.find(
+          (d) =>
+            d.status === 'done' &&
+            (d.challenger_id === me || d.opponent_id === me) &&
+            d.ends_at &&
+            Date.now() - Date.parse(d.ends_at) < 5 * 60_000 &&
+            !closedDuels[d.id],
+        )
+        const duel = live ?? (justDone && detail.duelResults.some((r) => r.duel_id === justDone.id) ? justDone : null)
+        if (!duel || closedDuels[duel.id]) return null
+        return (
+          <DuelOverlay
+            key={duel.id}
+            duel={duel}
+            detail={detail}
+            me={me}
+            clockOffset={clockOffset}
+            onChange={() => load()}
+            onClose={() => setClosedDuels((c) => ({ ...c, [duel.id]: true }))}
+          />
+        )
+      })()}
 
       {toast && (
         <div className="toast" role="status">

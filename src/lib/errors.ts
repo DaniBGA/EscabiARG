@@ -54,6 +54,16 @@ const MESSAGES: Record<string, string> = {
   INFRACTION_NOT_FOUND: 'Esa infracción ya no está en la lista.',
   FORFEIT_NOT_FOUND: 'Esa prenda ya no existe.',
   FORFEIT_ALREADY_DONE: 'Esa prenda ya la cumpliste.',
+  INVALID_OPPONENT: 'Elegí a alguien del viaje (que no seas vos).',
+  INVALID_SECONDS: 'Elegí un tiempo válido.',
+  DUEL_BUSY: 'Alguno de los dos ya tiene un duelo en curso.',
+  DUEL_LIMIT_ME: 'Ya jugaste 3 duelos en esta jornada. ¡Descansá un rato!',
+  DUEL_LIMIT_OPPONENT: 'Esa persona ya jugó 3 duelos en esta jornada.',
+  DUEL_NOT_FOUND: 'Ese duelo ya no existe.',
+  DUEL_CLOSED: 'Ese duelo ya terminó.',
+  DUEL_ALREADY_DONE: 'Ya terminaste tu parte del duelo.',
+  DUEL_FALSE_START: '¡Largada en falso! Esperá a que arranque.',
+  DUEL_SHOTS_CAP: 'Llegaste al máximo de 3 shots.',
 }
 
 const AUTH_MESSAGES: [RegExp, string][] = [

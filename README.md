@@ -41,6 +41,7 @@ Cuando la app esté lista para el público, ocultá la demo con `VITE_ENABLE_DEM
       bucket privado `trip-photos` de Storage para las fotos)
    3. `supabase/migrations/20261106000000_validaciones_y_votaciones.sql`
    4. `supabase/migrations/20261107000000_prendas_ruleta_casino.sql`
+   5. `supabase/migrations/20261108000000_duelos.sql`
 
    (o con la CLI: `supabase link` + `supabase db push`).
 3. **Login** (*Authentication → Sign In / Providers*):
@@ -116,6 +117,14 @@ Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
   cada uno carga cuánto ganó o perdió con **foto de las fichas o el ticket**; el
   grupo lo valida y el que más ganó se lleva los puntos (30 por defecto). Hay 1 hora
   para cargar los resultados.
+- **Duelos**: retás a alguien del viaje a **fondo blanco** (el reloj sube y gana el
+  que aprieta "¡Terminé!" en menos tiempo, dentro del máximo elegido) o a **shots**
+  (cuenta regresiva del tiempo elegido; gana el que toma más, y si empatan el que
+  llegó primero). Cuenta regresiva 3-2-1 sincronizada en los dos celulares. El
+  ganador suma 15 por defecto y el resto del grupo valida el resultado.
+  Para que siga siendo un juego: el retado tiene que aceptar (puede decir que no),
+  se cuentan **hasta 3 shots** por duelo, **hasta 3 duelos por persona por
+  jornada**, y siempre hay un botón "Me bajo" (perder o bajarse no resta puntos).
 - **Ruleta**: cuando termina una jornada, quien más sumó (si hay empate, todos los
   empatados) gira la ruleta una vez y gana una **carta comodín** para usar cuando quiera:
 
@@ -144,6 +153,7 @@ Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
 - `trip_infractions`, `trip_forfeits`, `player_forfeits`: infracciones y prendas.
 - `chef_spins`, `chef_spin_players`, `chef_votes`: ruleta de quién cocina.
 - `casino_sessions`, `casino_players`: casino con temporizador.
+- `duels`, `duel_results`: duelos de fondo blanco y shots.
 
 Las escrituras pasan por funciones (`add_friend_by_code`, `remove_friend`,
 `create_trip`, `log_drink`, `choose_daily_mission`, `complete_daily_mission`,
@@ -151,5 +161,6 @@ Las escrituras pasan por funciones (`add_friend_by_code`, `remove_friend`,
 `start_mission_challenge`, `vote_mission_bad`, `propose_mission_option`,
 `start_option_vote`, `vote_mission_option`, `report_infraction`, `complete_forfeit`,
 `start_chef_spin`, `join_chef_spin`, `chef_ready`, `vote_chef`, `start_casino`,
-`join_casino`, `report_casino`) que validan todo del lado del servidor; con RLS cada usuario
+`join_casino`, `report_casino`, `challenge_duel`, `respond_duel`, `duel_action`)
+que validan todo del lado del servidor; con RLS cada usuario
 solo ve su perfil, sus amigos y los viajes en los que participa.

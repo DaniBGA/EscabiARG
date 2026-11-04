@@ -2,6 +2,7 @@ import type {
   CardKey,
   CasinoSession,
   ChefSpin,
+  Duel,
   PlayerForfeit,
   DailyMission,
   Difficulty,
@@ -177,6 +178,7 @@ export type PendingItem =
   | { type: 'chefVote'; spin: ChefSpin }
   | { type: 'casinoReport'; session: CasinoSession }
   | { type: 'forfeit'; forfeit: PlayerForfeit }
+  | { type: 'duelInvite'; duel: Duel }
 
 export function myPendingItems(detail: TripDetail, me: string, now = Date.now()): PendingItem[] {
   const members = detail.trip.members
@@ -219,8 +221,27 @@ export function myPendingItems(detail: TripDetail, me: string, now = Date.now())
   for (const f of detail.playerForfeits) {
     if (f.user_id === me && f.status === 'to_do') items.push({ type: 'forfeit', forfeit: f })
   }
+  for (const d of detail.duels) {
+    if (d.status === 'invited' && d.opponent_id === me && Date.parse(d.created_at) + DUEL_INVITE_MS > now) {
+      items.push({ type: 'duelInvite', duel: d })
+    }
+  }
   return items
 }
+
+// ---------- Duelos ----------
+
+export const DUEL_INVITE_MS = 10 * 60_000
+export const DUEL_MAX_SHOTS = 3
+export const DUELS_PER_DAY = 3
+export const FONDO_SECONDS = [15, 30, 60, 120]
+export const SHOTS_SECONDS = [30, 60, 120, 180]
+
+/** Duelo en vivo (o por arrancar) donde participás */
+export const myLiveDuel = (duels: Duel[], me: string) =>
+  duels.find((d) => d.status === 'live' && (d.challenger_id === me || d.opponent_id === me)) ?? null
+
+export const formatDuelTime = (s: number) => (s < 60 ? `${s} s` : `${s / 60} min`)
 
 export const activeChefSpin = (spins: ChefSpin[]) =>
   spins.find((s) => s.status === 'joining' || s.status === 'cooking' || s.status === 'voting') ?? null

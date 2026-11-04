@@ -6,6 +6,8 @@ import type {
   ChefSpin,
   ChefSpinPlayer,
   ChefVote,
+  Duel,
+  DuelResult,
   Forfeit,
   Infraction,
   PlayerForfeit,
@@ -28,6 +30,9 @@ import { clearDemoPhotos, demoPhotoUrls, saveDemoPhoto, seedPhotoPath } from './
 import {
   CARDS,
   DEFAULT_CUTOFF_HOUR,
+  DUEL_INVITE_MS,
+  DUEL_MAX_SHOTS,
+  DUELS_PER_DAY,
   addDays,
   cardDef,
   difficultyLabel,
@@ -48,7 +53,7 @@ import { SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
 
 export const DEMO_USER_ID = 'demo-me'
 const STORAGE_KEY = 'escabiarg:demo-data'
-const VERSION = 4
+const VERSION = 5
 
 type StoredTrip = Omit<Trip, 'members'> &
   TripRules & {
@@ -78,6 +83,8 @@ type DemoData = {
   chefVotes: (ChefVote & { trip_id: string })[]
   casinoSessions: CasinoSession[]
   casinoPlayers: (CasinoPlayer & { trip_id: string })[]
+  duels: Duel[]
+  duelResults: (DuelResult & { trip_id: string })[]
 }
 
 const PEOPLE: Profile[] = [
@@ -107,6 +114,7 @@ const DEFAULT_RULES: TripRules = {
   day_cutoff_hour: DEFAULT_CUTOFF_HOUR,
   chef_points: 20,
   casino_points: 30,
+  duel_points: 15,
 }
 
 function seedLists(tripId: string) {
@@ -320,6 +328,8 @@ function seed(): DemoData {
     chefVotes: [],
     casinoSessions: [],
     casinoPlayers: [],
+    duels: [],
+    duelResults: [],
   }
 }
 
@@ -524,6 +534,72 @@ function resolveChef(data: DemoData, spin: ChefSpin) {
   }
 }
 
+const fmtSeconds = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')} s`
+
+function resolveDuel(data: DemoData, d: Duel, now = Date.now()) {
+  if (d.status === 'invited') {
+    if (now >= Date.parse(d.created_at) + DUEL_INVITE_MS) d.status = 'cancelled'
+    return
+  }
+  if (d.status !== 'live' || !d.starts_at || !d.ends_at) return
+  const res = (id: string) => data.duelResults.find((r) => r.duel_id === d.id && r.user_id === id) as DuelResult
+  const a = res(d.challenger_id)
+  const b = res(d.opponent_id)
+  const start = Date.parse(d.starts_at)
+  const ended =
+    now >= Date.parse(d.ends_at) ||
+    a.gave_up ||
+    b.gave_up ||
+    (d.kind === 'fondo' && a.finished_at && b.finished_at) ||
+    (d.kind === 'shots' && a.shots >= DUEL_MAX_SHOTS && b.shots >= DUEL_MAX_SHOTS)
+  if (!ended) return
+
+  let winner: DuelResult | null = null
+  if (a.gave_up && !b.gave_up) winner = b
+  else if (b.gave_up && !a.gave_up) winner = a
+  else if (d.kind === 'fondo') {
+    const done = [a, b].filter((r) => r.finished_at && !r.gave_up)
+    winner = done.sort((x, y) => Date.parse(x.finished_at!) - Date.parse(y.finished_at!))[0] ?? null
+  } else {
+    const best = [a, b].sort((x, y) => y.shots - x.shots || Date.parse(x.last_shot_at ?? '') - Date.parse(y.last_shot_at ?? ''))[0]
+    winner = best.shots > 0 ? best : null
+  }
+
+  if (winner) {
+    const loser = winner === a ? b : a
+    const trip = data.trips.find((t) => t.id === d.trip_id)
+    const detail =
+      d.kind === 'fondo'
+        ? `Terminó en ${fmtSeconds(Date.parse(winner.finished_at!) - start)}` +
+          (loser.gave_up ? ' · el otro se bajó' : !loser.finished_at ? ' · el otro no llegó' : ` · el otro tardó ${fmtSeconds(Date.parse(loser.finished_at) - start)}`)
+        : `${winner.shots} a ${loser.shots}${loser.gave_up ? ' · el otro se bajó' : ''}`
+    const e = addEvent(data, {
+      trip_id: d.trip_id,
+      user_id: winner.user_id,
+      actor_id: loser.user_id,
+      kind: 'duel',
+      points: trip?.duel_points ?? 15,
+      day: d.day,
+      title: d.kind === 'fondo' ? 'Ganó el duelo de fondo blanco' : 'Ganó el duelo de shots',
+      emoji: '⚔️',
+      detail,
+      status: 'pending',
+      ref_id: d.id,
+    })
+    d.event_id = e.id
+    resolveEvent(data, e)
+  }
+  d.winner_id = winner?.user_id ?? null
+  d.status = 'done'
+}
+
+/** Ritmo de cada jugador de ejemplo (fijo por duelo) */
+function botPace(duelId: string, botId: string) {
+  let h = 0
+  for (const ch of duelId + botId) h = (h * 31 + ch.charCodeAt(0)) | 0
+  return Math.abs(h) % 1000 / 1000
+}
+
 function resolveCasino(data: DemoData, c: CasinoSession, now = Date.now()) {
   if (c.status === 'done' || c.status === 'cancelled') return
   if (c.status === 'running') {
@@ -718,6 +794,50 @@ function botsAct(data: DemoData, now = Date.now()) {
       })
       resolveCasino(data, c, now)
     }
+
+    // Duelos: los jugadores de ejemplo aceptan y juegan a su ritmo
+    for (const d of data.duels) {
+      if (d.trip_id !== trip.id) continue
+      if (d.status === 'invited' && bots.includes(d.opponent_id) && now - Date.parse(d.created_at) >= 3000) {
+        const day = data.duels.filter(
+          (x) => x.day === d.day && (x.status === 'live' || x.status === 'done') &&
+            (x.challenger_id === d.opponent_id || x.opponent_id === d.opponent_id),
+        ).length
+        if (day >= DUELS_PER_DAY) d.status = 'declined'
+        else startDuel(data, d, now)
+      }
+      if (d.status === 'live' && d.starts_at && d.ends_at) {
+        const start = Date.parse(d.starts_at)
+        const end = Date.parse(d.ends_at)
+        for (const id of [d.challenger_id, d.opponent_id]) {
+          if (!bots.includes(id)) continue
+          const r = data.duelResults.find((x) => x.duel_id === d.id && x.user_id === id)
+          if (!r || r.gave_up) continue
+          const pace = botPace(d.id, id)
+          if (d.kind === 'fondo') {
+            const finishAt = start + 5000 + pace * 9000
+            if (!r.finished_at && now >= finishAt && finishAt < end) r.finished_at = iso(finishAt)
+          } else {
+            const every = 8000 + pace * 14000
+            const shots = Math.min(DUEL_MAX_SHOTS, Math.floor((Math.min(now, end) - start) / every))
+            if (shots > r.shots) {
+              r.shots = shots
+              r.last_shot_at = iso(start + shots * every)
+            }
+          }
+        }
+      }
+      resolveDuel(data, d, now)
+    }
+  }
+}
+
+function startDuel(data: DemoData, d: Duel, now = Date.now()) {
+  d.status = 'live'
+  d.starts_at = iso(now + 5000)
+  d.ends_at = iso(now + 5000 + d.seconds * 1000)
+  for (const user_id of [d.challenger_id, d.opponent_id]) {
+    data.duelResults.push({ duel_id: d.id, trip_id: d.trip_id, user_id, finished_at: null, shots: 0, last_shot_at: null, gave_up: false })
   }
 }
 
@@ -745,6 +865,9 @@ function buildDetail(data: DemoData, trip: StoredTrip): TripDetail {
     chefVotes: data.chefVotes.filter((x) => x.trip_id === id),
     casinoSessions: data.casinoSessions.filter((x) => x.trip_id === id).sort((a, b) => b.created_at.localeCompare(a.created_at)),
     casinoPlayers: data.casinoPlayers.filter((x) => x.trip_id === id),
+    duels: data.duels.filter((x) => x.trip_id === id).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    duelResults: data.duelResults.filter((x) => x.trip_id === id),
+    serverTime: new Date().toISOString(),
   }
 }
 
@@ -1426,6 +1549,91 @@ export const demoApi: Api = {
     Object.assign(player, { amount, event_id: e.id, reported_at: iso(Date.now()) })
     resolveEvent(data, e)
     resolveCasino(data, c)
+    save(data)
+  },
+
+  async challengeDuel(tripId, opponentId, kind, seconds) {
+    await wait()
+    const data = load()
+    const trip = tripFor(data, tripId)
+    botsAct(data)
+    if (opponentId === data.me.id || !trip.members.some((m) => m.user_id === opponentId)) throw new Error('INVALID_OPPONENT')
+    if (kind === 'fondo' ? seconds < 10 || seconds > 120 : seconds < 30 || seconds > 300) throw new Error('INVALID_SECONDS')
+    const involves = (d: Duel, id: string) => d.challenger_id === id || d.opponent_id === id
+    if (data.duels.some((d) => d.trip_id === tripId && (d.status === 'invited' || d.status === 'live') &&
+        (involves(d, data.me.id) || involves(d, opponentId)))) {
+      throw new Error('DUEL_BUSY')
+    }
+    const today = todayOf(trip)
+    const played = (id: string) =>
+      data.duels.filter((d) => d.trip_id === tripId && d.day === today && (d.status === 'live' || d.status === 'done') && involves(d, id)).length
+    if (played(data.me.id) >= DUELS_PER_DAY) throw new Error('DUEL_LIMIT_ME')
+    if (played(opponentId) >= DUELS_PER_DAY) throw new Error('DUEL_LIMIT_OPPONENT')
+    data.duels.unshift({
+      id: newId(),
+      trip_id: tripId,
+      kind,
+      challenger_id: data.me.id,
+      opponent_id: opponentId,
+      seconds,
+      status: 'invited',
+      day: today,
+      created_at: iso(Date.now()),
+      starts_at: null,
+      ends_at: null,
+      winner_id: null,
+      event_id: null,
+    })
+    save(data)
+  },
+
+  async respondDuel(duelId, accept) {
+    await wait()
+    const data = load()
+    const d = data.duels.find((x) => x.id === duelId)
+    if (!d) throw new Error('DUEL_NOT_FOUND')
+    tripFor(data, d.trip_id)
+    resolveDuel(data, d)
+    if (d.opponent_id !== data.me.id) throw new Error('NOT_ALLOWED')
+    if (d.status !== 'invited') throw new Error('DUEL_CLOSED')
+    if (accept) startDuel(data, d)
+    else d.status = 'declined'
+    save(data)
+  },
+
+  async duelAction(duelId, action) {
+    await wait(120)
+    const data = load()
+    const d = data.duels.find((x) => x.id === duelId)
+    if (!d) throw new Error('DUEL_NOT_FOUND')
+    tripFor(data, d.trip_id)
+    botsAct(data)
+    const r = data.duelResults.find((x) => x.duel_id === d.id && x.user_id === data.me.id)
+    if (!r) throw new Error('NOT_ALLOWED')
+    if (d.status !== 'live' || !d.starts_at) throw new Error('DUEL_CLOSED')
+    if (r.gave_up || r.finished_at) throw new Error('DUEL_ALREADY_DONE')
+    const now = Date.now()
+    if (action === 'give_up') r.gave_up = true
+    else {
+      if (now < Date.parse(d.starts_at)) throw new Error('DUEL_FALSE_START')
+      if (action === 'finish' && d.kind === 'fondo') r.finished_at = iso(now)
+      else if (action === 'shot' && d.kind === 'shots') {
+        if (r.shots >= DUEL_MAX_SHOTS) throw new Error('DUEL_SHOTS_CAP')
+        r.shots += 1
+        r.last_shot_at = iso(now)
+      } else throw new Error('INVALID_KIND')
+    }
+    resolveDuel(data, d)
+    save(data)
+  },
+
+  async cancelDuel(duelId) {
+    await wait()
+    const data = load()
+    const d = data.duels.find((x) => x.id === duelId)
+    if (!d) throw new Error('DUEL_NOT_FOUND')
+    if (d.challenger_id !== data.me.id || d.status !== 'invited') throw new Error('NOT_ALLOWED')
+    d.status = 'cancelled'
     save(data)
   },
 }

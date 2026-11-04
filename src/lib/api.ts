@@ -46,6 +46,8 @@ export type TripRules = {
   chef_points: number
   /** Puntos para quien más gana en el casino */
   casino_points: number
+  /** Puntos para el ganador de un duelo */
+  duel_points: number
 }
 
 export type EventStatus = 'pending' | 'approved' | 'rejected'
@@ -65,7 +67,7 @@ export type TripEvent = {
   trip_id: string
   user_id: string
   actor_id: string
-  kind: 'drink' | 'mission' | 'quiebre' | 'card' | 'infraction' | 'chef' | 'casino' | 'forfeit'
+  kind: 'drink' | 'mission' | 'quiebre' | 'card' | 'infraction' | 'chef' | 'casino' | 'forfeit' | 'duel'
   points: number
   day: string
   title: string
@@ -123,6 +125,33 @@ export type CasinoSession = {
   ends_at: string
   report_until: string
   created_at: string
+}
+
+export type DuelKind = 'fondo' | 'shots'
+
+export type Duel = {
+  id: string
+  trip_id: string
+  kind: DuelKind
+  challenger_id: string
+  opponent_id: string
+  seconds: number
+  status: 'invited' | 'declined' | 'live' | 'done' | 'cancelled'
+  day: string
+  created_at: string
+  starts_at: string | null
+  ends_at: string | null
+  winner_id: string | null
+  event_id: string | null
+}
+
+export type DuelResult = {
+  duel_id: string
+  user_id: string
+  finished_at: string | null
+  shots: number
+  last_shot_at: string | null
+  gave_up: boolean
 }
 
 export type CasinoPlayer = {
@@ -206,6 +235,10 @@ export type TripDetail = {
   chefVotes: ChefVote[]
   casinoSessions: CasinoSession[]
   casinoPlayers: CasinoPlayer[]
+  duels: Duel[]
+  duelResults: DuelResult[]
+  /** Hora del servidor al leer (para sincronizar cuentas regresivas) */
+  serverTime: string
 }
 
 /** Operaciones de datos de la app (implementadas con Supabase o con la demo local) */
@@ -255,6 +288,10 @@ export type Api = {
   joinCasino(sessionId: string): Promise<void>
   cancelCasino(sessionId: string): Promise<void>
   reportCasino(sessionId: string, amount: number, photoPath: string): Promise<void>
+  challengeDuel(tripId: string, opponentId: string, kind: DuelKind, seconds: number): Promise<void>
+  respondDuel(duelId: string, accept: boolean): Promise<void>
+  duelAction(duelId: string, action: 'finish' | 'shot' | 'give_up'): Promise<void>
+  cancelDuel(duelId: string): Promise<void>
 }
 
 /** Lanza un Error con el mensaje de Supabase (los RPC usan códigos tipo FRIEND_IS_SELF) */
@@ -332,7 +369,7 @@ async function createTrip(trip: NewTrip): Promise<string> {
 const PHOTO_BUCKET = 'trip-photos'
 
 const TRIP_COLUMNS =
-  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, chef_points, casino_points, members:trip_members(user_id, role, profile:profiles(id, display_name))'
+  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, chef_points, casino_points, duel_points, members:trip_members(user_id, role, profile:profiles(id, display_name))'
 
 async function getTrip(tripId: string): Promise<TripDetail> {
   const sb = requireSupabase()
@@ -341,6 +378,7 @@ async function getTrip(tripId: string): Promise<TripDetail> {
   const [
     trip, drinks, events, missions, cards, eventVotes, challenges, badVotes, options, optionVotes,
     infractions, forfeits, playerForfeits, chefSpins, chefPlayers, chefVotes, casinoSessions, casinoPlayers,
+    duels, duelResults, serverTime,
   ] = await Promise.all([
     sb.from('trips').select(TRIP_COLUMNS).eq('id', tripId).single(),
     sb
@@ -394,6 +432,14 @@ async function getTrip(tripId: string): Promise<TripDetail> {
       .order('created_at', { ascending: false })
       .limit(10),
     sb.from('casino_players').select('session_id, user_id, amount, event_id, reported_at').eq('trip_id', tripId),
+    sb
+      .from('duels')
+      .select('id, trip_id, kind, challenger_id, opponent_id, seconds, status, day, created_at, starts_at, ends_at, winner_id, event_id')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false })
+      .limit(30),
+    sb.from('duel_results').select('duel_id, user_id, finished_at, shots, last_shot_at, gave_up').eq('trip_id', tripId),
+    sb.rpc('server_time'),
   ])
   return {
     trip: check(trip) as unknown as TripDetail['trip'],
@@ -414,6 +460,9 @@ async function getTrip(tripId: string): Promise<TripDetail> {
     chefVotes: check(chefVotes) as ChefVote[],
     casinoSessions: check(casinoSessions) as CasinoSession[],
     casinoPlayers: check(casinoPlayers) as CasinoPlayer[],
+    duels: check(duels) as Duel[],
+    duelResults: check(duelResults) as DuelResult[],
+    serverTime: (check(serverTime) as string) ?? new Date().toISOString(),
   }
 }
 
@@ -578,5 +627,17 @@ export const supabaseApi: Api = {
   },
   async reportCasino(sessionId, amount, photoPath) {
     await rpc('report_casino', { p_session: sessionId, p_amount: amount, p_photo: photoPath })
+  },
+  async challengeDuel(tripId, opponentId, kind, seconds) {
+    await rpc('challenge_duel', { p_trip: tripId, p_opponent: opponentId, p_kind: kind, p_seconds: seconds })
+  },
+  async respondDuel(duelId, accept) {
+    await rpc('respond_duel', { p_duel: duelId, p_accept: accept })
+  },
+  async duelAction(duelId, action) {
+    await rpc('duel_action', { p_duel: duelId, p_action: action })
+  },
+  async cancelDuel(duelId) {
+    await rpc('cancel_duel', { p_duel: duelId })
   },
 }

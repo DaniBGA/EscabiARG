@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { TripDetail, TripEvent } from '../../lib/api'
 import { useApi } from '../../lib/authContext'
 import { friendlyError } from '../../lib/errors'
-import { eventTally, formatPoints, formatTime, myPendingItems } from '../../lib/game'
+import { eventTally, formatDuelTime, formatPoints, formatTime, myPendingItems } from '../../lib/game'
 import Sheet from '../Sheet'
 import ChallengeCard from './ChallengeCard'
 
@@ -68,6 +68,10 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
           ) : e.kind === 'casino' ? (
             <>
               <strong>{name(e.user_id)}</strong> dice que en el casino: {e.detail}
+            </>
+          ) : e.kind === 'duel' ? (
+            <>
+              ⚔️ <strong>{name(e.user_id)}</strong> le ganó un duelo a <strong>{name(e.actor_id)}</strong>: {e.detail}
             </>
           ) : (
             <>
@@ -216,6 +220,23 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
               action="Cargar"
               onAction={() => onGo('casino')}
             />
+          ) : item.type === 'duelInvite' ? (
+            <article key={item.duel.id} className="quick quick--duel">
+              <span className="quick-icon" aria-hidden="true">⚔️</span>
+              <div className="quick-body">
+                <p className="quick-title">
+                  <strong>{who(item.duel.challenger_id)}</strong> te retó a un duelo de{' '}
+                  {item.duel.kind === 'fondo' ? `fondo blanco (máx. ${formatDuelTime(item.duel.seconds)})` : `shots (${formatDuelTime(item.duel.seconds)})`}
+                </p>
+                <p className="muted small">Podés decir que no sin problema.</p>
+                <div className="vote-row">
+                  <button type="button" className="btn btn--primary" disabled={busy}
+                    onClick={() => act(() => api.respondDuel(item.duel.id, true), '⚔️ ¡Duelo aceptado! Preparate')}>Aceptar</button>
+                  <button type="button" className="btn btn--ghost" disabled={busy}
+                    onClick={() => act(() => api.respondDuel(item.duel.id, false), 'Duelo rechazado')}>No, gracias</button>
+                </div>
+              </div>
+            </article>
           ) : (
             <QuickItem
               key={item.forfeit.id}

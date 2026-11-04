@@ -33,6 +33,7 @@ const RULE_FIELDS: { key: PointRule; label: string }[] = [
   { key: 'quiebre_penalty', label: '😵 Descuento por quebrar' },
   { key: 'chef_points', label: '👨‍🍳 Cocinar o preparar bien' },
   { key: 'casino_points', label: '🎰 Ganar el casino' },
+  { key: 'duel_points', label: '⚔️ Ganar un duelo' },
 ]
 
 function DrinkForm({ initial, onSave, onCancel }: {
@@ -120,6 +121,7 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
     quiebre_penalty: String(rules.quiebre_penalty),
     chef_points: String(rules.chef_points),
     casino_points: String(rules.casino_points),
+    duel_points: String(rules.duel_points),
   }))
   const [cutoff, setCutoff] = useState(rules.day_cutoff_hour)
   const [savingRules, setSavingRules] = useState(false)
