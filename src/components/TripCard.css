@@ -1,4 +1,8 @@
 .trip-card {
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.12s ease, transform 0.12s ease;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -94,4 +98,30 @@
   font-size: 0.85rem;
   font-weight: 700;
   opacity: 0.7;
+}
+
+.trip-card:hover {
+  border-color: rgba(255, 213, 107, 0.4);
+}
+
+.trip-card:active {
+  transform: scale(0.99);
+}
+
+.trip-card:focus-visible {
+  outline: 3px solid #ffd56b;
+  outline-offset: 3px;
+}
+
+.trip-open {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #ffd56b;
+}
+
+.trip-card .trip-name {
+  padding-right: 70px;
 }

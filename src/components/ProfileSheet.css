@@ -43,3 +43,10 @@
 .profile-signout {
   margin-top: 24px;
 }
+
+.profile-demo-note {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 0.82rem;
+  opacity: 0.6;
+}

@@ -1,0 +1,99 @@
+import { useEffect, useState } from 'react'
+import type { TripEvent, TripMember } from '../../lib/api'
+import { useApi } from '../../lib/authContext'
+import { formatDay, formatPoints, formatTime } from '../../lib/game'
+import Sheet from '../Sheet'
+
+type Props = {
+  events: TripEvent[]
+  members: TripMember[]
+  userId: string
+  today: string
+}
+
+const MAX_EVENTS = 80
+
+export default function ActivityFeed({ events, members, userId, today }: Props) {
+  const api = useApi()
+  const [urls, setUrls] = useState<Record<string, string>>({})
+  const [viewing, setViewing] = useState<string | null>(null)
+
+  const shown = events.slice(0, MAX_EVENTS)
+  const pathsKey = shown.flatMap((e) => e.photo_paths).join('|')
+
+  useEffect(() => {
+    if (!pathsKey) return
+    let alive = true
+    api
+      .getPhotoUrls(pathsKey.split('|'))
+      .then((r) => alive && setUrls((prev) => ({ ...prev, ...r })))
+      .catch(() => {
+        // sin fotos: se muestra el emoji
+      })
+    return () => {
+      alive = false
+    }
+  }, [api, pathsKey])
+
+  const name = (id: string) =>
+    id === userId ? 'Vos' : members.find((m) => m.user_id === id)?.profile?.display_name ?? 'Alguien'
+
+  const groups = new Map<string, TripEvent[]>()
+  for (const e of shown) groups.set(e.day, [...(groups.get(e.day) ?? []), e])
+
+  if (shown.length === 0) {
+    return (
+      <section className="card-box">
+        <p className="muted center">Todavía no pasó nada. ¡Cargá el primer trago! 🍻</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="card-box" aria-label="Actividad">
+      {[...groups.entries()].map(([day, list]) => (
+        <div key={day} className="feed-day">
+          <h3 className="feed-day-title">{formatDay(day, today)}</h3>
+          <ul className="feed">
+            {list.map((e) => (
+              <li key={e.id} className="feed-item">
+                <span className={`feed-emoji feed-emoji--${e.kind}`} aria-hidden="true">{e.emoji || '•'}</span>
+                <div className="feed-body">
+                  <p className="feed-line">
+                    <strong>{name(e.user_id)}</strong>{' '}
+                    {e.kind === 'drink' ? `· ${e.title}` : e.kind === 'quiebre' ? e.title.toLowerCase() : `· ${e.title}`}
+                  </p>
+                  {e.detail && <p className="feed-detail">“{e.detail}”</p>}
+                  {e.kind === 'quiebre' && e.actor_id !== e.user_id && (
+                    <p className="feed-detail">Lo reportó {name(e.actor_id)}</p>
+                  )}
+                  {e.photo_paths.length > 0 && (
+                    <div className="feed-photos">
+                      {e.photo_paths.map((p) =>
+                        urls[p] ? (
+                          <button key={p} type="button" className="feed-photo" onClick={() => setViewing(urls[p])}>
+                            <img src={urls[p]} alt={`Foto: ${e.title}`} loading="lazy" />
+                          </button>
+                        ) : (
+                          <span key={p} className="feed-photo feed-photo--loading" aria-hidden="true" />
+                        ),
+                      )}
+                    </div>
+                  )}
+                  <span className="feed-time">{formatTime(e.created_at)}</span>
+                </div>
+                <span className={`pts-chip${e.points < 0 ? ' is-neg' : e.points === 0 ? ' is-zero' : ''}`}>
+                  {formatPoints(e.points)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+
+      <Sheet open={viewing !== null} title="Foto" onClose={() => setViewing(null)}>
+        {viewing && <img className="lightbox-img" src={viewing} alt="Foto en grande" />}
+      </Sheet>
+    </section>
+  )
+}

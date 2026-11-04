@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { isGoogleAuthEnabled, isSupabaseConfigured, supabase } from '../lib/supabase'
+import { useAuth } from '../lib/authContext'
+import { isDemoEnabled, isGoogleAuthEnabled, isSupabaseConfigured, supabase } from '../lib/supabase'
 import { friendlyError } from '../lib/errors'
 import './LoginOptions.css'
 
@@ -29,8 +30,9 @@ export default function LoginOptions() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const { enterDemo } = useAuth()
   const [error, setError] = useState<string | null>(
-    isSupabaseConfigured ? null : friendlyError('SUPABASE_NOT_CONFIGURED'),
+    isSupabaseConfigured || isDemoEnabled ? null : friendlyError('SUPABASE_NOT_CONFIGURED'),
   )
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -107,6 +109,17 @@ export default function LoginOptions() {
             <p className="login-subtitle">Elegí cómo querés entrar</p>
 
             <div className="login-buttons">
+              {isDemoEnabled && !isSupabaseConfigured && (
+                <>
+                  <button type="button" className="login-btn login-btn--email" onClick={enterDemo}>
+                    🍺 Probar sin cuenta (demo)
+                  </button>
+                  <p className="login-hint">
+                    El login con cuenta todavía no está configurado. Mientras tanto, la demo te deja
+                    recorrer toda la app con datos de prueba.
+                  </p>
+                </>
+              )}
               {isGoogleAuthEnabled && (
                 <button type="button" className="login-btn login-btn--google" onClick={signInWithGoogle} disabled={disabled}>
                   <GoogleIcon />
@@ -123,6 +136,12 @@ export default function LoginOptions() {
               <button type="button" className="login-btn login-btn--guest" onClick={signInAsGuest} disabled={disabled}>
                 {busy ? 'Entrando…' : 'Entrar como invitado'}
               </button>
+
+              {isDemoEnabled && isSupabaseConfigured && (
+                <button type="button" className="login-btn login-btn--demo" onClick={enterDemo}>
+                  🍺 Probar sin cuenta (demo)
+                </button>
+              )}
             </div>
           </>
         ) : (

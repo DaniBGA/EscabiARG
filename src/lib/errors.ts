@@ -6,6 +6,21 @@ const MESSAGES: Record<string, string> = {
   ALREADY_FRIENDS: 'Ya son amigos.',
   MEMBER_NOT_FRIEND: 'Solo podés invitar a tus amigos.',
   TRIP_NAME_REQUIRED: 'Ponele un nombre al viaje.',
+  NOT_TRIP_MEMBER: 'No sos parte de este viaje.',
+  DRINK_NOT_FOUND: 'Ese trago ya no está en la carta.',
+  PHOTO_REQUIRED: 'La foto no es válida: sacá una nueva en el momento.',
+  PHOTO_TOO_OLD: 'Esa foto no es de ahora. Sacá una nueva con la cámara.',
+  PHOTO_INVALID: 'No pudimos leer la foto. Probá de nuevo.',
+  INVALID_DIFFICULTY: 'Elegí una dificultad válida.',
+  MISSION_ALREADY_CHOSEN: 'Ya elegiste tu misión de hoy.',
+  MISSION_NOT_FOUND: 'No tenés misión para hoy. Elegí una dificultad.',
+  MISSION_ALREADY_DONE: 'Ya cumpliste la misión de hoy.',
+  QUIEBRE_PHOTOS_REQUIRED: 'Subí entre 1 y 3 fotos nuevas de la quebrada.',
+  DAY_NOT_FINISHED: 'La jornada todavía no terminó.',
+  NOT_DAY_WINNER: 'Solo el ganador de la jornada puede girar la ruleta.',
+  ALREADY_SPUN: 'Ya giraste la ruleta de esa jornada.',
+  CARD_NOT_AVAILABLE: 'Ese comodín ya se usó.',
+  TARGET_REQUIRED: 'Elegí a quién robarle.',
 }
 
 const AUTH_MESSAGES: [RegExp, string][] = [
@@ -17,6 +32,8 @@ const AUTH_MESSAGES: [RegExp, string][] = [
   [/provider is not enabled/i, 'Este método de ingreso no está habilitado todavía.'],
   [/rate limit/i, 'Demasiados intentos. Esperá un ratito y probá de nuevo.'],
   [/failed to fetch|network/i, 'No hay conexión. Revisá tu internet.'],
+  [/maximum allowed size|payload too large/i, 'La foto es muy pesada.'],
+  [/row-level security|permission denied/i, 'No tenés permiso para hacer eso.'],
 ]
 
 /** Traduce errores de Supabase / RPC a mensajes para el usuario */

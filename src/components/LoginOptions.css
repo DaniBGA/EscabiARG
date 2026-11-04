@@ -204,3 +204,21 @@
   background: rgba(255, 107, 87, 0.16);
   color: #ffb4a6;
 }
+
+.login-btn--demo {
+  background: transparent;
+  color: #ffd56b;
+  border-style: dashed;
+  border-color: rgba(255, 213, 107, 0.55);
+}
+
+.login-btn--demo:hover {
+  background: rgba(255, 213, 107, 0.08);
+}
+
+.login-hint {
+  margin: -2px 0 6px;
+  font-size: 0.85rem;
+  text-align: center;
+  opacity: 0.75;
+}

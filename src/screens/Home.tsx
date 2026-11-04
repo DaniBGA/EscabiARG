@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
-import { getMyProfile, listFriends, listTrips, type Profile, type Trip } from '../lib/api'
+import type { Profile, Trip } from '../lib/api'
+import { useApi, useAuth, type AppUser } from '../lib/authContext'
 import { friendlyError } from '../lib/errors'
-import { supabase } from '../lib/supabase'
 import Avatar from '../components/Avatar'
 import CreateTripSheet from '../components/CreateTripSheet'
 import FriendsSheet from '../components/FriendsSheet'
@@ -13,9 +12,10 @@ import './Home.css'
 
 type Panel = 'none' | 'create' | 'friends' | 'profile'
 
-export default function Home({ session }: { session: Session }) {
-  const userId = session.user.id
-  const isGuest = Boolean(session.user.is_anonymous)
+export default function Home({ user }: { user: AppUser }) {
+  const userId = user.id
+  const api = useApi()
+  const { signOut } = useAuth()
 
   const [me, setMe] = useState<Profile | null>(null)
   const [friends, setFriends] = useState<Profile[]>([])
@@ -23,9 +23,9 @@ export default function Home({ session }: { session: Session }) {
   const [error, setError] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>('none')
 
-  const loadProfile = useCallback(async () => setMe(await getMyProfile(userId)), [userId])
-  const loadFriends = useCallback(async () => setFriends(await listFriends(userId)), [userId])
-  const loadTrips = useCallback(async () => setTrips(await listTrips()), [])
+  const loadProfile = useCallback(async () => setMe(await api.getMyProfile(userId)), [api, userId])
+  const loadFriends = useCallback(async () => setFriends(await api.listFriends(userId)), [api, userId])
+  const loadTrips = useCallback(async () => setTrips(await api.listTrips()), [api])
 
   const loadAll = useCallback(async () => {
     try {
@@ -54,7 +54,7 @@ export default function Home({ session }: { session: Session }) {
                   setError(null)
                   loadAll()
                 }}>Reintentar</button>
-              <button type="button" className="btn btn--ghost" onClick={() => supabase?.auth.signOut()}>
+              <button type="button" className="btn btn--ghost" onClick={signOut}>
                 Cerrar sesión
               </button>
             </div>
@@ -94,6 +94,12 @@ export default function Home({ session }: { session: Session }) {
       </header>
 
       <main className="home-main">
+        {user.isDemo && (
+          <p className="demo-banner">
+            <strong>Modo demo</strong> · Los datos son de prueba y se guardan solo en este dispositivo.
+          </p>
+        )}
+
         <p className="home-greeting">¡Hola, {me.display_name}! 🍻</p>
 
         <button type="button" className="create-trip" onClick={() => setPanel('create')}>
@@ -149,7 +155,7 @@ export default function Home({ session }: { session: Session }) {
         open={panel === 'profile'}
         onClose={() => setPanel('none')}
         me={me}
-        isGuest={isGuest}
+        user={user}
         onChange={safely(async () => {
           await loadProfile()
           await loadTrips()
