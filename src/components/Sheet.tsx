@@ -25,8 +25,13 @@ export default function Sheet({ open, title, onClose, children }: Props) {
       ref={ref}
       className="sheet"
       aria-label={title}
-      onClose={onClose}
+      // Los eventos de un diálogo anidado (ej: la cámara) suben por el árbol de React:
+      // solo reaccionamos a los de este diálogo
+      onClose={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
       onCancel={(e) => {
+        if (e.target !== e.currentTarget) return
         e.preventDefault()
         onClose()
       }}

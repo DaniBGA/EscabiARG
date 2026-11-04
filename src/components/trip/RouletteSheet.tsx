@@ -10,6 +10,7 @@ type Props = {
   onClose: () => void
   tripId: string
   day: string | null
+  today: string
   onDone: (message: string) => void
 }
 
@@ -24,7 +25,7 @@ const point = (deg: number, r: number) => {
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export default function RouletteSheet({ open, onClose, tripId, day, onDone }: Props) {
+export default function RouletteSheet({ open, onClose, tripId, day, today, onDone }: Props) {
   const api = useApi()
   const [rotation, setRotation] = useState(0)
   const [phase, setPhase] = useState<'idle' | 'spinning' | 'result'>('idle')
@@ -70,7 +71,7 @@ export default function RouletteSheet({ open, onClose, tripId, day, onDone }: Pr
   return (
     <Sheet open={open} title="Ruleta del ganador" onClose={close}>
       <div className="sheet-stack roulette">
-        {day && <p className="muted center">Ganaste la jornada de <strong>{formatDay(day).toLowerCase()}</strong>. Girá y llevate un comodín.</p>}
+        {day && <p className="muted center">Ganaste la jornada de <strong>{formatDay(day, today).toLowerCase()}</strong>. Girá y llevate un comodín.</p>}
 
         <div className="wheel-wrap">
           <svg viewBox="-110 -110 220 220" className="wheel" role="img" aria-label="Ruleta de comodines">

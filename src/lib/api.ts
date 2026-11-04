@@ -40,7 +40,11 @@ export type TripRules = {
   mission_points_medium: number
   mission_points_extreme: number
   quiebre_penalty: number
+  /** Hora (0-23, Argentina) en que termina la jornada */
+  day_cutoff_hour: number
 }
+
+export type EventStatus = 'pending' | 'approved' | 'rejected'
 
 export type Drink = {
   id: string
@@ -65,7 +69,38 @@ export type TripEvent = {
   detail: string | null
   photo_paths: string[]
   created_at: string
+  status: EventStatus
 }
+
+export type EventVote = { event_id: string; voter_id: string; valid: boolean }
+
+export type ChallengePhase = 'vote_bad' | 'proposals' | 'vote_option' | 'replaced' | 'kept'
+
+export type MissionChallenge = {
+  id: string
+  trip_id: string
+  mission_id: string
+  target_user_id: string
+  started_by: string
+  phase: ChallengePhase
+  bad_until: string
+  proposals_until: string | null
+  voting_until: string | null
+  winner_option_id: string | null
+  created_at: string
+}
+
+export type ChallengeBadVote = { challenge_id: string; voter_id: string; bad: boolean }
+
+export type ChallengeOption = {
+  id: string
+  challenge_id: string
+  author_id: string
+  text: string
+  created_at: string
+}
+
+export type ChallengeOptionVote = { challenge_id: string; voter_id: string; option_id: string }
 
 export type DailyMission = {
   id: string
@@ -77,6 +112,7 @@ export type DailyMission = {
   points: number
   completed_at: string | null
   photo_path: string | null
+  group_assigned: boolean
 }
 
 export type PlayerCard = {
@@ -96,6 +132,11 @@ export type TripDetail = {
   events: TripEvent[]
   missions: DailyMission[]
   cards: PlayerCard[]
+  eventVotes: EventVote[]
+  challenges: MissionChallenge[]
+  badVotes: ChallengeBadVote[]
+  options: ChallengeOption[]
+  optionVotes: ChallengeOptionVote[]
 }
 
 /** Operaciones de datos de la app (implementadas con Supabase o con la demo local) */
@@ -120,6 +161,15 @@ export type Api = {
   reportQuiebre(tripId: string, userId: string, photoPaths: string[]): Promise<void>
   spinRoulette(tripId: string, day: string): Promise<CardKey>
   redeemCard(cardId: string, targetId: string | null): Promise<void>
+
+  voteEvent(eventId: string, valid: boolean): Promise<void>
+  startMissionChallenge(missionId: string): Promise<void>
+  voteMissionBad(challengeId: string, bad: boolean): Promise<void>
+  proposeMissionOption(challengeId: string, text: string): Promise<void>
+  startOptionVote(challengeId: string): Promise<void>
+  voteMissionOption(challengeId: string, optionId: string): Promise<void>
+  /** Cosas que esperan tu voto, por viaje */
+  pendingCounts(): Promise<Record<string, number>>
 }
 
 /** Lanza un Error con el mensaje de Supabase (los RPC usan códigos tipo FRIEND_IS_SELF) */
@@ -197,11 +247,13 @@ async function createTrip(trip: NewTrip): Promise<string> {
 const PHOTO_BUCKET = 'trip-photos'
 
 const TRIP_COLUMNS =
-  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, members:trip_members(user_id, role, profile:profiles(id, display_name))'
+  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, members:trip_members(user_id, role, profile:profiles(id, display_name))'
 
 async function getTrip(tripId: string): Promise<TripDetail> {
   const sb = requireSupabase()
-  const [trip, drinks, events, missions, cards] = await Promise.all([
+  // Cierra votaciones vencidas antes de leer
+  check(await sb.rpc('tick_trip', { p_trip: tripId }))
+  const [trip, drinks, events, missions, cards, eventVotes, challenges, badVotes, options, optionVotes] = await Promise.all([
     sb.from('trips').select(TRIP_COLUMNS).eq('id', tripId).single(),
     sb
       .from('trip_drinks')
@@ -211,18 +263,27 @@ async function getTrip(tripId: string): Promise<TripDetail> {
       .order('points'),
     sb
       .from('trip_events')
-      .select('id, trip_id, user_id, actor_id, kind, points, day, title, emoji, detail, photo_paths, created_at')
+      .select('id, trip_id, user_id, actor_id, kind, points, day, title, emoji, detail, photo_paths, created_at, status')
       .eq('trip_id', tripId)
       .order('created_at', { ascending: false }),
     sb
       .from('daily_missions')
-      .select('id, trip_id, user_id, day, difficulty, mission, points, completed_at, photo_path')
+      .select('id, trip_id, user_id, day, difficulty, mission, points, completed_at, photo_path, group_assigned')
       .eq('trip_id', tripId),
     sb
       .from('player_cards')
       .select('id, trip_id, user_id, card_key, won_day, status, target_user_id, created_at')
       .eq('trip_id', tripId)
       .order('created_at'),
+    sb.from('event_votes').select('event_id, voter_id, valid').eq('trip_id', tripId),
+    sb
+      .from('mission_challenges')
+      .select('id, trip_id, mission_id, target_user_id, started_by, phase, bad_until, proposals_until, voting_until, winner_option_id, created_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false }),
+    sb.from('challenge_bad_votes').select('challenge_id, voter_id, bad').eq('trip_id', tripId),
+    sb.from('challenge_options').select('id, challenge_id, author_id, text, created_at').eq('trip_id', tripId).order('created_at'),
+    sb.from('challenge_option_votes').select('challenge_id, voter_id, option_id').eq('trip_id', tripId),
   ])
   return {
     trip: check(trip) as unknown as TripDetail['trip'],
@@ -230,6 +291,11 @@ async function getTrip(tripId: string): Promise<TripDetail> {
     events: check(events) as TripEvent[],
     missions: check(missions) as DailyMission[],
     cards: check(cards) as PlayerCard[],
+    eventVotes: check(eventVotes) as EventVote[],
+    challenges: check(challenges) as MissionChallenge[],
+    badVotes: check(badVotes) as ChallengeBadVote[],
+    options: check(options) as ChallengeOption[],
+    optionVotes: check(optionVotes) as ChallengeOptionVote[],
   }
 }
 
@@ -323,5 +389,27 @@ export const supabaseApi: Api = {
   },
   async redeemCard(cardId, targetId) {
     await rpc('redeem_card', { p_card: cardId, p_target: targetId })
+  },
+  async voteEvent(eventId, valid) {
+    await rpc('vote_event', { p_event: eventId, p_valid: valid })
+  },
+  async startMissionChallenge(missionId) {
+    await rpc('start_mission_challenge', { p_mission: missionId })
+  },
+  async voteMissionBad(challengeId, bad) {
+    await rpc('vote_mission_bad', { p_challenge: challengeId, p_bad: bad })
+  },
+  async proposeMissionOption(challengeId, text) {
+    await rpc('propose_mission_option', { p_challenge: challengeId, p_text: text })
+  },
+  async startOptionVote(challengeId) {
+    await rpc('start_option_vote', { p_challenge: challengeId })
+  },
+  async voteMissionOption(challengeId, optionId) {
+    await rpc('vote_mission_option', { p_challenge: challengeId, p_option: optionId })
+  },
+  async pendingCounts() {
+    const rows = (await rpc('my_pending', {})) as { trip_id: string; pending: number }[]
+    return Object.fromEntries(rows.map((r) => [r.trip_id, Number(r.pending)]))
   },
 }

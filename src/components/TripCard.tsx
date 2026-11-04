@@ -15,7 +15,7 @@ function formatDate(iso: string) {
   })
 }
 
-export default function TripCard({ trip, myId }: { trip: Trip; myId: string }) {
+export default function TripCard({ trip, myId, pending = 0 }: { trip: Trip; myId: string; pending?: number }) {
   const owner = trip.members.find((m) => m.role === 'owner')
   const isMine = trip.owner_id === myId
   const members = [...trip.members].sort(
@@ -56,6 +56,9 @@ export default function TripCard({ trip, myId }: { trip: Trip; myId: string }) {
         </span>
       </div>
       <span className="trip-open" aria-hidden="true">Entrar →</span>
+      {pending > 0 && (
+        <span className="trip-pending">🔔 {pending} {pending === 1 ? 'pendiente' : 'pendientes'}</span>
+      )}
     </a>
   )
 }

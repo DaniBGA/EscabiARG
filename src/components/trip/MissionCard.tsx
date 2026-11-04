@@ -12,15 +12,17 @@ type Props = {
   userId: string
   rules: TripRules
   mission: DailyMission | null
+  /** Están votando si tu misión es mala */
+  underVote: boolean
   onChange: (message?: string) => void
 }
 
-export default function MissionCard({ tripId, userId, rules, mission, onChange }: Props) {
+export default function MissionCard({ tripId, userId, rules, mission, underVote, onChange }: Props) {
   const api = useApi()
   const [busy, setBusy] = useState<Difficulty | 'done' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
-  const [files, setFiles] = useState<File[]>([])
+  const [photos, setPhotos] = useState<Blob[]>([])
 
   const choose = async (d: Difficulty) => {
     setBusy(d)
@@ -40,10 +42,10 @@ export default function MissionCard({ tripId, userId, rules, mission, onChange }
     setBusy('done')
     setError(null)
     try {
-      const [path] = files.length ? await uploadPhotos(api, tripId, userId, files) : [null]
+      const [path] = photos.length ? await uploadPhotos(api, tripId, userId, photos) : [null]
       await api.completeMission(tripId, path)
       setCompleting(false)
-      setFiles([])
+      setPhotos([])
       onChange(`🎉 ¡Misión cumplida! +${mission.points} puntos`)
     } catch (err) {
       setError(friendlyError(err))
@@ -81,8 +83,11 @@ export default function MissionCard({ tripId, userId, rules, mission, onChange }
             {DIFFICULTIES.find((d) => d.key === mission.difficulty)?.emoji} {difficultyLabel(mission.difficulty)} · +{mission.points}
           </span>
           <p className="mission-text">{mission.mission}</p>
+          {mission.group_assigned && <span className="badge-group">elegida por el grupo</span>}
           {mission.completed_at ? (
             <p className="mission-done">✅ ¡Cumplida! Mañana te toca otra.</p>
+          ) : underVote ? (
+            <p className="notice">🗳️ Están votando si tu misión es mala. Esperá a que termine para cumplirla.</p>
           ) : (
             <button type="button" className="btn btn--primary btn--block" onClick={() => setCompleting(true)}>
               ¡La cumplí!
@@ -98,7 +103,7 @@ export default function MissionCard({ tripId, userId, rules, mission, onChange }
         title="Misión cumplida"
         onClose={() => {
           setCompleting(false)
-          setFiles([])
+          setPhotos([])
           setError(null)
         }}
       >
@@ -106,7 +111,7 @@ export default function MissionCard({ tripId, userId, rules, mission, onChange }
           <p className="mission-text">{mission?.mission}</p>
           <div>
             <p className="step-label">Prueba (opcional)</p>
-            <PhotoPicker files={files} onChange={setFiles} label="Sacar foto de prueba" />
+            <PhotoPicker photos={photos} onChange={setPhotos} label="Sacar foto de prueba" />
           </div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
           <button type="button" className="btn btn--primary btn--block" disabled={busy !== null} onClick={complete}>

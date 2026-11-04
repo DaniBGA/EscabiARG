@@ -20,7 +20,7 @@ type Props = {
 export default function QuiebreSheet({ open, onClose, tripId, userId, members, penalty, onDone }: Props) {
   const api = useApi()
   const [who, setWho] = useState<string | null>(null)
-  const [files, setFiles] = useState<File[]>([])
+  const [photos, setPhotos] = useState<Blob[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,21 +28,21 @@ export default function QuiebreSheet({ open, onClose, tripId, userId, members, p
 
   const close = () => {
     setWho(null)
-    setFiles([])
+    setPhotos([])
     setError(null)
     onClose()
   }
 
   const submit = async () => {
-    if (!who || files.length === 0) return
+    if (!who || photos.length === 0) return
     setBusy(true)
     setError(null)
     try {
-      const paths = await uploadPhotos(api, tripId, userId, files)
+      const paths = await uploadPhotos(api, tripId, userId, photos)
       await api.reportQuiebre(tripId, who, paths)
       const name = who === userId ? 'Vos' : target?.profile?.display_name ?? 'Alguien'
       close()
-      onDone(`😵 ${name} quebró: -${penalty} puntos`)
+      onDone(`😵 Quiebre de ${name} reportado: falta que lo valide la mayoría`)
     } catch (err) {
       setError(friendlyError(err))
     } finally {
@@ -54,7 +54,7 @@ export default function QuiebreSheet({ open, onClose, tripId, userId, members, p
     <Sheet open={open} title="Reportar quiebre" onClose={close}>
       <div className="sheet-stack">
         <p className="muted">
-          Al que quiebra se le restan <strong>{penalty} puntos</strong>. Para que cuente, hacen falta fotos de la quebrada.
+          Al que quiebra se le restan <strong>{penalty} puntos</strong>. Para que cuente, hacen falta fotos de la quebrada y que la mayoría del grupo las valide.
         </p>
 
         <div>
@@ -77,7 +77,7 @@ export default function QuiebreSheet({ open, onClose, tripId, userId, members, p
 
         <div>
           <p className="step-label">2. Fotos de la quebrada (1 a 3)</p>
-          <PhotoPicker files={files} onChange={setFiles} max={3} label="Sacar foto" />
+          <PhotoPicker photos={photos} onChange={setPhotos} max={3} label="Sacar foto" />
         </div>
 
         {error && <p className="notice notice--error" role="alert">{error}</p>}
@@ -85,7 +85,7 @@ export default function QuiebreSheet({ open, onClose, tripId, userId, members, p
         <button
           type="button"
           className="btn btn--danger-solid btn--block"
-          disabled={busy || !who || files.length === 0}
+          disabled={busy || !who || photos.length === 0}
           onClick={submit}
         >
           {busy ? 'Subiendo…' : target ? `Confirmar quiebre (-${penalty})` : 'Elegí quién quebró'}

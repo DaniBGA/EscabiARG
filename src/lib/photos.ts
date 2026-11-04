@@ -1,13 +1,4 @@
-/** Fotos: control de que sean "de ahora" y compresión antes de subir */
-
-/** La foto tiene que haberse sacado hace menos de esto */
-export const MAX_PHOTO_AGE_MS = 15 * 60_000
-
-export function isFreshPhoto(file: File, now = Date.now()) {
-  // Si el navegador no informa la fecha, no podemos chequear: la dejamos pasar
-  if (!file.lastModified) return true
-  return now - file.lastModified < MAX_PHOTO_AGE_MS
-}
+/** Fotos: compresión antes de subir (las fotos vienen de la cámara de la app) */
 
 async function loadBitmap(file: Blob): Promise<ImageBitmap | HTMLImageElement> {
   if ('createImageBitmap' in window) {
