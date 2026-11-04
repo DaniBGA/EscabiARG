@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { createTrip, type Profile } from '../lib/api'
+import type { Profile } from '../lib/api'
+import { useApi } from '../lib/authContext'
 import { friendlyError } from '../lib/errors'
 import Avatar from './Avatar'
 import Sheet from './Sheet'
@@ -21,6 +22,7 @@ export default function CreateTripSheet({ open, onClose, friends, onCreated, onO
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const api = useApi()
 
   const reset = () => {
     setName('')
@@ -52,7 +54,7 @@ export default function CreateTripSheet({ open, onClose, friends, onCreated, onO
     setBusy(true)
     setError(null)
     try {
-      await createTrip({
+      await api.createTrip({
         name: name.trim(),
         tripDate: date || null,
         place: place.trim() || null,

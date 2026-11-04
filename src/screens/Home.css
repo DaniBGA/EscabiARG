@@ -234,3 +234,18 @@
 @media (prefers-reduced-motion: reduce) {
   .home { animation: none; }
 }
+
+.demo-banner {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 213, 107, 0.45);
+  background: rgba(255, 213, 107, 0.08);
+  color: #ffe6a3;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.demo-banner strong {
+  color: #ffd56b;
+}

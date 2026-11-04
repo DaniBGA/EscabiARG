@@ -16,6 +16,20 @@ cp .env.example .env.local   # y completá los datos de Supabase
 npm run dev
 ```
 
+## Probar sin cuenta (modo demo)
+
+Para recorrer las pantallas sin registrarte ni configurar nada:
+
+- En el login tocá **"Probar sin cuenta (demo)"**, o
+- abrí la app con `?demo` al final de la URL (ej: `https://tu-sitio.netlify.app/?demo`).
+
+La demo trae amigos y viajes de ejemplo, y todo lo que hagas (agregar amigos,
+crear viajes, cambiar tu nombre) se guarda **solo en ese navegador**. Para
+agregar amigos usá los códigos de prueba que aparecen en el panel de amigos
+(`COLO22`, `SOFI99`, `NACHO7`). Al tocar "Salir de la demo" se borran los datos.
+
+Cuando la app esté lista para el público, ocultá la demo con `VITE_ENABLE_DEMO=false`.
+
 ## Configurar Supabase (una sola vez)
 
 1. Creá un proyecto en [supabase.com](https://supabase.com/dashboard).
@@ -39,6 +53,7 @@ npm run dev
 | `VITE_SUPABASE_URL` | URL del proyecto (`https://xxxx.supabase.co`) |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Publishable key / anon key (es pública, la protege RLS) |
 | `VITE_ENABLE_GOOGLE_AUTH` | `true` para mostrar "Continuar con Google" |
+| `VITE_ENABLE_DEMO` | `false` para ocultar el modo demo (por defecto está visible) |
 
 ## Deploy en Netlify
 
@@ -48,9 +63,11 @@ Conectá el repo en Netlify; toma automáticamente `netlify.toml`
 
 ## Qué hay hasta ahora
 
-- **Pantalla de carga**: un vaso de cerveza que llena toda la pantalla (chorro,
-  burbujas y espuma). Se saltea tocando y respeta `prefers-reduced-motion`.
-- **Login**: email + contraseña, invitado (anónimo) y Google opcional.
+- **Pantalla de carga**: un vaso de cerveza dibujado en `<canvas>` que llena toda la
+  pantalla: canilla, chorro con caída, espuma que se forma mientras se sirve,
+  hileras de burbujas, salpicaduras y gotas de condensación. Se saltea tocando y
+  respeta `prefers-reduced-motion` (`src/components/beer/BeerRenderer.ts`).
+- **Login**: email + contraseña, invitado (anónimo), Google opcional y modo demo.
 - **Inicio**: logo arriba, botón de **amigos** (tu código + agregar por código),
   **Crear viaje** (nombre, fecha, lugar e invitar amigos) y la lista de **tus viajes**.
 

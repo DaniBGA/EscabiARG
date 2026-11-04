@@ -11,6 +11,9 @@ export const supabase = isSupabaseConfigured ? createClient(url!, key!) : null
 
 export const isGoogleAuthEnabled = import.meta.env.VITE_ENABLE_GOOGLE_AUTH === 'true'
 
+/** Modo demo disponible salvo que se apague con VITE_ENABLE_DEMO=false */
+export const isDemoEnabled = import.meta.env.VITE_ENABLE_DEMO !== 'false'
+
 export function requireSupabase() {
   if (!supabase) throw new Error('SUPABASE_NOT_CONFIGURED')
   return supabase

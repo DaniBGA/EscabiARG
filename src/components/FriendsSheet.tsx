@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { addFriendByCode, removeFriend, type Profile } from '../lib/api'
+import type { Profile } from '../lib/api'
+import { useApi, useAuth } from '../lib/authContext'
+import { DEMO_FRIEND_CODES } from '../lib/demoApi'
 import { friendlyError } from '../lib/errors'
 import Avatar from './Avatar'
 import Sheet from './Sheet'
@@ -19,6 +21,10 @@ export default function FriendsSheet({ open, onClose, me, friends, onChange }: P
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const api = useApi()
+  const isDemo = Boolean(useAuth().user?.isDemo)
+  const friendCodes = new Set(friends.map((f) => f.friend_code))
+  const demoCodes = DEMO_FRIEND_CODES.filter((c) => !friendCodes.has(c))
 
   const close = () => {
     setCode('')
@@ -33,7 +39,7 @@ export default function FriendsSheet({ open, onClose, me, friends, onChange }: P
     setError(null)
     setNotice(null)
     try {
-      const friend = await addFriendByCode(code)
+      const friend = await api.addFriendByCode(code)
       setNotice(`¡Listo! ${friend.display_name} ya es tu amigo 🍻`)
       setCode('')
       onChange()
@@ -49,7 +55,7 @@ export default function FriendsSheet({ open, onClose, me, friends, onChange }: P
     setError(null)
     setNotice(null)
     try {
-      await removeFriend(friend.id)
+      await api.removeFriend(friend.id)
       onChange()
     } catch (err) {
       setError(friendlyError(err))
@@ -84,6 +90,16 @@ export default function FriendsSheet({ open, onClose, me, friends, onChange }: P
           <span id="add-friend-hint" className="field-hint">
             Pedile a tu amigo su código de 6 caracteres.
           </span>
+          {isDemo && demoCodes.length > 0 && (
+            <span className="demo-codes">
+              Para probar:
+              {demoCodes.map((c) => (
+                <button key={c} type="button" className="demo-code" onClick={() => setCode(c)}>
+                  {c}
+                </button>
+              ))}
+            </span>
+          )}
         </label>
       </form>
 

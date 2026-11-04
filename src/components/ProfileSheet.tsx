@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { updateDisplayName, type Profile } from '../lib/api'
+import type { Profile } from '../lib/api'
+import { useApi, useAuth, type AppUser } from '../lib/authContext'
 import { friendlyError } from '../lib/errors'
-import { supabase } from '../lib/supabase'
 import Avatar from './Avatar'
 import FriendCode from './FriendCode'
 import Sheet from './Sheet'
@@ -11,11 +11,13 @@ type Props = {
   open: boolean
   onClose: () => void
   me: Profile
-  isGuest: boolean
+  user: AppUser
   onChange: () => void
 }
 
-export default function ProfileSheet({ open, onClose, me, isGuest, onChange }: Props) {
+export default function ProfileSheet({ open, onClose, me, user, onChange }: Props) {
+  const api = useApi()
+  const auth = useAuth()
   const [name, setName] = useState(me.display_name)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,7 +27,7 @@ export default function ProfileSheet({ open, onClose, me, isGuest, onChange }: P
     setBusy(true)
     setError(null)
     try {
-      await updateDisplayName(me.id, name)
+      await api.updateDisplayName(me.id, name)
       onChange()
     } catch (err) {
       setError(friendlyError(err))
@@ -35,10 +37,10 @@ export default function ProfileSheet({ open, onClose, me, isGuest, onChange }: P
   }
 
   const signOut = async () => {
-    if (isGuest && !window.confirm('Sos invitado: si cerrás sesión vas a perder tus amigos y viajes. ¿Seguro?')) {
+    if (user.isGuest && !window.confirm('Sos invitado: si cerrás sesión vas a perder tus amigos y viajes. ¿Seguro?')) {
       return
     }
-    await supabase?.auth.signOut()
+    await auth.signOut()
   }
 
   const unchanged = name.trim() === me.display_name || !name.trim()
@@ -57,7 +59,8 @@ export default function ProfileSheet({ open, onClose, me, isGuest, onChange }: P
         <Avatar id={me.id} name={me.display_name} size={64} />
         <div>
           <p className="profile-name">{me.display_name}</p>
-          {isGuest && <p className="profile-badge">Invitado</p>}
+          {user.isGuest && <p className="profile-badge">Invitado</p>}
+          {user.isDemo && <p className="profile-badge">Demo</p>}
         </div>
       </div>
 
@@ -86,8 +89,11 @@ export default function ProfileSheet({ open, onClose, me, isGuest, onChange }: P
       </div>
 
       <button type="button" className="btn btn--danger btn--block profile-signout" onClick={signOut}>
-        Cerrar sesión
+        {user.isDemo ? 'Salir de la demo' : 'Cerrar sesión'}
       </button>
+      {user.isDemo && (
+        <p className="profile-demo-note">Al salir se borran los datos de prueba.</p>
+      )}
     </Sheet>
   )
 }

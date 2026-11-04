@@ -29,13 +29,24 @@ export type NewTrip = {
   memberIds: string[]
 }
 
+/** Operaciones de datos de la app (implementadas con Supabase o con la demo local) */
+export type Api = {
+  getMyProfile(userId: string): Promise<Profile>
+  updateDisplayName(userId: string, displayName: string): Promise<void>
+  listFriends(userId: string): Promise<Profile[]>
+  addFriendByCode(code: string): Promise<Profile>
+  removeFriend(friendId: string): Promise<void>
+  listTrips(): Promise<Trip[]>
+  createTrip(trip: NewTrip): Promise<string>
+}
+
 /** Lanza un Error con el mensaje de Supabase (los RPC usan códigos tipo FRIEND_IS_SELF) */
 function check<T>(result: { data: T; error: { message: string } | null }): T {
   if (result.error) throw new Error(result.error.message)
   return result.data
 }
 
-export async function getMyProfile(userId: string): Promise<Profile> {
+async function getMyProfile(userId: string): Promise<Profile> {
   const sb = requireSupabase()
   const profile = check(
     await sb.from('profiles').select('id, display_name, friend_code').eq('id', userId).single(),
@@ -43,12 +54,12 @@ export async function getMyProfile(userId: string): Promise<Profile> {
   return profile as Profile
 }
 
-export async function updateDisplayName(userId: string, displayName: string): Promise<void> {
+async function updateDisplayName(userId: string, displayName: string): Promise<void> {
   const sb = requireSupabase()
   check(await sb.from('profiles').update({ display_name: displayName.trim() }).eq('id', userId))
 }
 
-export async function listFriends(userId: string): Promise<Profile[]> {
+async function listFriends(userId: string): Promise<Profile[]> {
   const sb = requireSupabase()
   const rows = check(
     await sb
@@ -63,18 +74,18 @@ export async function listFriends(userId: string): Promise<Profile[]> {
     .sort((a, b) => a.display_name.localeCompare(b.display_name, 'es'))
 }
 
-export async function addFriendByCode(code: string): Promise<Profile> {
+async function addFriendByCode(code: string): Promise<Profile> {
   const sb = requireSupabase()
   const rows = check(await sb.rpc('add_friend_by_code', { p_code: code })) as Profile[]
   return rows[0]
 }
 
-export async function removeFriend(friendId: string): Promise<void> {
+async function removeFriend(friendId: string): Promise<void> {
   const sb = requireSupabase()
   check(await sb.rpc('remove_friend', { p_friend: friendId }))
 }
 
-export async function listTrips(): Promise<Trip[]> {
+async function listTrips(): Promise<Trip[]> {
   const sb = requireSupabase()
   const rows = check(
     await sb
@@ -87,7 +98,7 @@ export async function listTrips(): Promise<Trip[]> {
   return rows as unknown as Trip[]
 }
 
-export async function createTrip(trip: NewTrip): Promise<string> {
+async function createTrip(trip: NewTrip): Promise<string> {
   const sb = requireSupabase()
   return check(
     await sb.rpc('create_trip', {
@@ -97,4 +108,14 @@ export async function createTrip(trip: NewTrip): Promise<string> {
       p_member_ids: trip.memberIds,
     }),
   ) as string
+}
+
+export const supabaseApi: Api = {
+  getMyProfile,
+  updateDisplayName,
+  listFriends,
+  addFriendByCode,
+  removeFriend,
+  listTrips,
+  createTrip,
 }

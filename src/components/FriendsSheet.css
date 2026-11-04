@@ -84,3 +84,26 @@
   letter-spacing: normal;
   font-family: var(--font-body);
 }
+
+.demo-codes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.demo-code {
+  padding: 3px 9px;
+  border-radius: 8px;
+  border: 1px dashed rgba(255, 213, 107, 0.5);
+  background: rgba(255, 213, 107, 0.08);
+  color: #ffd56b;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
