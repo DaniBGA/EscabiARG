@@ -207,12 +207,59 @@ Si todo eso anduvo, ya está online. 🍻
 | "El login todavía no está configurado" / solo aparece la demo | El build se hizo sin las variables | Cargá las variables y **Clear cache and deploy site** |
 | "Invalid API key" al entrar | Clave mal copiada o de otro proyecto | Copiá de nuevo la publishable key del paso 4 |
 | Se registran pero no les llega el mail | SMTP por defecto de Supabase | Desactivá **Confirm email** o configurá SMTP propio |
+| Error **500** al crear la cuenta / "No pudimos mandarte el mail de confirmación" | Supabase no pudo mandar el mail (SMTP mal configurado) | Ver [Error 500 al registrarse](#error-500-al-registrarse) |
+| "No pudimos crear tu cuenta por un error en la base de datos" | Falló el trigger que crea el perfil | Ver [Error 500 al registrarse](#error-500-al-registrarse) |
 | "El modo invitado no está habilitado todavía" | Falta el interruptor | Paso 3.2 |
 | "No tenés permiso para hacer eso" o errores de tablas que no existen | Falta correr el SQL | Paso 2 (o la migración que falte) |
 | No se suben las fotos | Falta el bucket `trip-photos` | Corré la migración 2 (o el setup completo) |
 | La cámara no abre | Permiso denegado | En el navegador: permisos del sitio → Cámara → Permitir. En iPhone: Ajustes → Safari → Cámara |
 | Después de confirmar el mail te manda a `localhost` | Site URL sin configurar | Paso 6 |
 | Las cuentas regresivas se ven corridas | Hora del celular muy desfasada | La app se sincroniza con el servidor; reiniciá la app |
+
+### Error 500 al registrarse
+
+Si en la consola del navegador ves
+`POST https://xxxx.supabase.co/auth/v1/signup … 500`, el problema está en Supabase,
+no en Netlify. Para ver la causa exacta:
+
+- **DevTools → Network** → tocá el pedido `signup` → pestaña **Response**, o
+- **Supabase → Logs → Auth** (filtrá por `signup` o por `error`): ahí aparece el
+  error completo, incluido lo que respondió el servidor de mails.
+
+Según el mensaje:
+
+**`Error sending confirmation email`** (el caso más común): Supabase intentó mandar el
+mail y tu SMTP lo rechazó. La cuenta **no** se crea, por eso falla siempre.
+
+1. Revisá **Authentication → Emails → SMTP Settings** campo por campo:
+
+   | Proveedor | Host | Puerto | Username | Password |
+   | --- | --- | --- | --- | --- |
+   | SendGrid | `smtp.sendgrid.net` | `587` | `apikey` (literal) | la API key (`SG.…`) |
+   | Brevo | `smtp-relay.brevo.com` | `587` | el **SMTP login** (`xxxx@smtp-brevo.com`) | la **SMTP key** (no tu contraseña de Brevo) |
+   | Resend | `smtp.resend.com` | `465` | `resend` | la API key (`re_…`) |
+
+2. El **Sender email** tiene que ser exactamente un remitente/dominio **verificado** en
+   el proveedor. Si no, el SMTP responde algo como
+   `550 The from address does not match a verified Sender Identity` y Supabase lo
+   muestra como 500.
+3. Si al pegar la password quedó un espacio al principio o al final, borrala y pegala
+   de nuevo.
+4. Para confirmar que el problema es el SMTP: desactivá un momento **Confirm email**
+   (Sign In / Providers → Email) y probá registrarte. Si así anda, el resto de la app
+   está bien y solo falta arreglar el mail.
+
+**`Database error saving new user`**: falló el trigger que crea el perfil
+(`handle_new_user`).
+
+1. **Logs → Postgres**: buscá el error de la misma hora (ahí dice qué falló).
+2. Revisá en **Table Editor** que exista la tabla `profiles`. Si no está, corré el
+   paso 2 (`setup_completo.sql`).
+3. Si corriste las migraciones a mano, fijate de haberlas corrido **todas y en orden**.
+
+**`Email address "…" cannot be used as it is not authorized`**: estás usando el SMTP
+por defecto de Supabase, que solo manda mails al equipo de tu organización. Configurá un
+SMTP propio o desactivá **Confirm email** (paso 3.1).
 
 ## Desarrollo en tu compu
 

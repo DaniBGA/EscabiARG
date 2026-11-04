@@ -69,6 +69,17 @@ const MESSAGES: Record<string, string> = {
 }
 
 const AUTH_MESSAGES: [RegExp, string][] = [
+  [
+    /error sending .*email/i,
+    'No pudimos mandarte el mail de confirmación. Probá de nuevo en un rato; si sigue pasando, hay que revisar la configuración de mails (SMTP) en Supabase.',
+  ],
+  [
+    /database error saving new user/i,
+    'No pudimos crear tu cuenta por un error en la base de datos. Probá de nuevo en un rato.',
+  ],
+  [/email address .*not authorized/i, 'Todavía no podemos mandar mails a esa dirección (falta configurar el servidor de mails).'],
+  [/email address .*invalid|unable to validate email/i, 'Ese email no es válido. Revisá que esté bien escrito.'],
+  [/signups not allowed|signup.*disabled/i, 'Por ahora no se pueden crear cuentas nuevas.'],
   [/invalid login credentials/i, 'Email o contraseña incorrectos.'],
   [/already registered|already been registered/i, 'Ya existe una cuenta con ese email.'],
   [/email not confirmed/i, 'Confirmá tu email antes de entrar (revisá tu casilla).'],
@@ -94,5 +105,7 @@ export function friendlyError(err: unknown): string {
   for (const [pattern, text] of AUTH_MESSAGES) {
     if (pattern.test(message)) return text
   }
+  // El detalle queda en la consola del navegador para poder diagnosticarlo
+  console.error('[EscabiARG] error sin traducir:', err)
   return 'Algo salió mal. Probá de nuevo.'
 }
