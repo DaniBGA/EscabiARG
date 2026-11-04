@@ -1,0 +1,41 @@
+<!--
+  EscabiARG · Mail de confirmación de cuenta
+  Supabase > Authentication > Emails > Templates > "Confirm signup"
+  Asunto sugerido: Confirmá tu cuenta de EscabiARG 🍺
+  (No borres {{ .ConfirmationURL }}: es el link de confirmación.)
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#16110c;padding:32px 12px;font-family:Arial,Helvetica,sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;background:#f3e7c9;border:3px solid #16110c;border-radius:8px;">
+        <tr>
+          <td style="background:#f2a71b;padding:18px 24px;border-bottom:3px solid #16110c;border-radius:5px 5px 0 0;">
+            <p style="margin:0;font-size:28px;font-weight:bold;color:#16110c;letter-spacing:1px;">EscabiARG</p>
+            <p style="margin:4px 0 0;font-size:13px;color:#2a1d10;">La app para tomar con amigos</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px;color:#2a1d10;">
+            <p style="margin:0 0 12px;font-size:20px;font-weight:bold;">¡Ya casi arrancamos la previa!</p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.5;">
+              Confirmá tu mail para terminar de crear tu cuenta y sumarte a los viajes y salidas de tus amigos.
+            </p>
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="background:#d6442c;border:2px solid #16110c;border-radius:8px;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 26px;font-size:16px;font-weight:bold;color:#fff8f0;text-decoration:none;text-transform:uppercase;letter-spacing:1px;">
+                    Confirmar mi cuenta
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:22px 0 0;font-size:12px;line-height:1.5;color:#6b5a43;">
+              Si no te registraste en EscabiARG, ignorá este mail.<br />
+              +18 · Tomá con moderación. Si manejás, no tomes.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

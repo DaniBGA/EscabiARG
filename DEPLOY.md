@@ -63,6 +63,50 @@ Todo esto está en **Authentication** (menú izquierdo).
      SendGrid tienen planes gratis) en **Authentication → Emails → SMTP Settings**
      y después volvé a activar **Confirm email**.
 
+### 3.1.b Mails propios con SendGrid
+
+> SendGrid ya **no tiene plan gratis** (lo retiró en mayo de 2025): las cuentas nuevas
+> tienen una prueba de 60 días con un tope de 100 mails por día, y después es pago.
+
+1. **Cuenta:** creá una en <https://sendgrid.com>.
+2. **Remitente** (Settings → **Sender Authentication**), elegí una:
+   - **Domain Authentication** (recomendado): si tenés un dominio propio (por ejemplo
+     `escabiarg.com.ar`), SendGrid te da unos registros **CNAME** para cargar en el DNS
+     de tu dominio. Con eso los mails llegan a la bandeja de entrada y no a spam.
+   - **Single Sender Verification** (para probar rápido): verificás una sola dirección.
+     Evitá usar una de Gmail/Hotmail como remitente: esos mails suelen ir a spam o
+     rebotar. No se puede autenticar `netlify.app` porque no es tuyo.
+3. **API key** (Settings → **API Keys** → **Create API Key**):
+   - Nombre: `supabase-escabiarg`
+   - Permisos: **Restricted Access** → **Mail Send: Full Access**
+   - Copiala: **se muestra una sola vez**.
+4. **Supabase** → **Authentication → Emails → SMTP Settings** → activá **custom SMTP**:
+
+   | Campo | Valor |
+   | --- | --- |
+   | Sender email | el remitente verificado en el paso 2 (ej. `hola@escabiarg.com.ar`) |
+   | Sender name | `EscabiARG` |
+   | Host | `smtp.sendgrid.net` |
+   | Port | `587` |
+   | Username | `apikey` (literal, la palabra *apikey*) |
+   | Password | la API key del paso 3 |
+
+   Guardá.
+5. **Límite de mails:** con SMTP propio Supabase arranca en unos **30 mails por hora**.
+   Ajustalo en **Authentication → Rate Limits** (sin pasarte de lo que permite tu plan
+   de SendGrid).
+6. **Reactivá "Confirm email"** en **Sign In / Providers → Email**.
+7. **Mail en español:** en **Authentication → Emails → Templates → Confirm signup**
+   pegá el contenido de
+   [`supabase/email-templates/confirmar-cuenta.html`](supabase/email-templates/confirmar-cuenta.html)
+   y poné de asunto *"Confirmá tu cuenta de EscabiARG 🍺"*.
+8. **Probá:** registrate con un mail nuevo desde la app. Tiene que llegar el mail;
+   el link te devuelve a la app ya confirmado. En SendGrid → **Activity** ves si se
+   envió, rebotó o se marcó como spam.
+
+Si falla: revisá que el remitente esté verificado, que la API key tenga **Mail Send**,
+que el usuario sea exactamente `apikey`, y probá el puerto `2525` si el `587` no anda.
+
 ### 3.2 Modo invitado
 
 1. **Sign In / Providers** → activá **Allow anonymous sign-ins**.
