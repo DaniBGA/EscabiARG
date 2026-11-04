@@ -59,11 +59,83 @@ Todo esto está en **Authentication** (menú izquierdo).
    como mucho ~2 por hora. Si lo dejás activado, tus amigos se registran pero nunca
    les llega el mail para confirmar.
    - **Para arrancar:** desactivá **Confirm email**. Se registran y entran directo.
-   - **Para producción:** configurá un SMTP propio (por ejemplo Resend, Brevo o
-     SendGrid tienen planes gratis) en **Authentication → Emails → SMTP Settings**
-     y después volvé a activar **Confirm email**.
+   - **Para producción:** configurá un SMTP propio en
+     **Authentication → Emails → SMTP Settings** y después volvé a activar
+     **Confirm email**. Recomendado: **Brevo** (gratis para siempre, paso 3.1.b).
 
-### 3.1.b Mails propios con SendGrid
+### 3.1.b Mails gratis con Brevo (recomendado)
+
+Brevo tiene un plan gratis sin vencimiento de **300 mails por día**, que alcanza de
+sobra para las confirmaciones de cuenta. Los menús de Brevo cambian de nombre seguido:
+si algo no aparece exacto, buscá el equivalente.
+
+**A. En Brevo**
+
+1. **Cuenta:** entrá a <https://www.brevo.com> → **Sign up free**. Confirmá tu mail y
+   completá todo el perfil que te pide (nombre, empresa —podés poner `EscabiARG`—,
+   dirección, teléfono). Con el perfil incompleto Brevo puede no habilitarte el envío.
+2. **Remitente:** menú de tu cuenta (arriba a la derecha) →
+   **Senders, Domains & Dedicated IPs** → pestaña **Senders** → **Add sender**:
+   - **From name:** `EscabiARG`
+   - **From email:** la dirección desde la que van a salir los mails.
+   - Guardá. Brevo manda un **código de 6 dígitos** a esa casilla
+     (asunto parecido a *"[Brevo] Activate your new sender"*) → pegalo → **Verify**.
+   - **Con dominio propio** (lo ideal): en la pestaña **Domains** → **Add a domain**
+     → cargá en el DNS de tu dominio los registros que te da (código de Brevo, DKIM,
+     DMARC). Así los mails llegan a la bandeja de entrada.
+   - **Sin dominio (con un Gmail):** sirve para arrancar, pero Gmail/Hotmail no se
+     pueden autenticar en Brevo y muchos mails van a caer en **spam** o no llegar.
+     Avisales a tus amigos que revisen spam.
+3. **Credenciales SMTP:** menú de tu cuenta → **SMTP & API** → pestaña **SMTP**:
+   - Anotá el **Login** tal cual aparece. En cuentas nuevas es un mail generado del
+     estilo `9a1b2c001@smtp-brevo.com`; en algunas cuentas viejas es tu mail de Brevo.
+   - **Generate a new SMTP key** → nombre `supabase-escabiarg` → **Generate** →
+     copiá la clave: **se muestra una sola vez**. Es distinta de la API key (las API
+     keys empiezan con `xkeysib-` y **no** sirven para SMTP).
+
+**B. En Supabase**
+
+4. **Authentication → Emails → SMTP Settings** → activá **Enable custom SMTP**:
+
+   | Campo | Valor |
+   | --- | --- |
+   | Sender email address | **exactamente** el *From email* verificado en el paso 2 |
+   | Sender name | `EscabiARG` |
+   | Host | `smtp-relay.brevo.com` |
+   | Port number | `587` |
+   | Minimum interval per user | dejalo como está (60 segundos) |
+   | Username | el **Login** del paso 3 |
+   | Password | la **SMTP key** del paso 3 (no la API key ni tu contraseña de Brevo) |
+
+   **Save changes.**
+5. **Authentication → Rate Limits:** con SMTP propio arranca en 30 mails por hora;
+   dejalo así (el tope de Brevo es 300 por día).
+6. **Sign In / Providers → Email:** activá **Confirm email**.
+7. **Mail en español:** **Authentication → Emails → Templates → Confirm signup** → pegá
+   [`supabase/email-templates/confirmar-cuenta.html`](supabase/email-templates/confirmar-cuenta.html)
+   y de asunto *"Confirmá tu cuenta de EscabiARG 🍺"*.
+8. Revisá que el paso 6 de esta guía (**URL Configuration**) esté hecho: si no, el
+   link del mail te manda a `localhost`.
+
+**C. Probar**
+
+9. Desde la app: **Continuar con email → Creá tu cuenta** con un mail que nunca
+   hayas usado. Tiene que aparecer *"Te mandamos un mail para confirmar la cuenta"*.
+10. Abrí el mail (mirá en spam) → tocá el botón → vuelve a la app con la cuenta lista.
+11. En Brevo, en la sección de mails **transaccionales** (**Transactional → Logs** o
+    **Statistics**), ves si el mail salió, rebotó o lo bloquearon.
+
+**Si falla**, mirá **Supabase → Logs → Auth**: ahí aparece la respuesta del SMTP.
+
+| El log dice algo como… | Qué hacer |
+| --- | --- |
+| `535 … Authentication failed` | Username o Password mal. Copiá de nuevo el Login y generá una SMTP key nueva |
+| Remitente inválido / no verificado (`sender … not valid`) | El *Sender email* de Supabase no coincide con el remitente verificado en Brevo |
+| `SMTP account is not yet activated` | Brevo todavía no te habilitó el envío transaccional: completá el perfil y pedí la activación a soporte desde tu cuenta de Brevo (puede tardar 1–2 días hábiles) |
+| Timeout o no conecta | Probá el puerto `2525` |
+| No hay error pero no llega | Está en spam: con Gmail como remitente pasa seguido. La solución es un dominio propio |
+
+### 3.1.c Mails propios con SendGrid (pago)
 
 > SendGrid ya **no tiene plan gratis** (lo retiró en mayo de 2025): las cuentas nuevas
 > tienen una prueba de 60 días con un tope de 100 mails por día, y después es pago.
@@ -236,7 +308,7 @@ mail y tu SMTP lo rechazó. La cuenta **no** se crea, por eso falla siempre.
    | Proveedor | Host | Puerto | Username | Password |
    | --- | --- | --- | --- | --- |
    | SendGrid | `smtp.sendgrid.net` | `587` | `apikey` (literal) | la API key (`SG.…`) |
-   | Brevo | `smtp-relay.brevo.com` | `587` | el **SMTP login** (`xxxx@smtp-brevo.com`) | la **SMTP key** (no tu contraseña de Brevo) |
+   | Brevo | `smtp-relay.brevo.com` | `587` | el **Login** de *SMTP & API → SMTP* (ej. `xxxx@smtp-brevo.com`) | la **SMTP key** (no la API key `xkeysib-…` ni tu contraseña) |
    | Resend | `smtp.resend.com` | `465` | `resend` | la API key (`re_…`) |
 
 2. El **Sender email** tiene que ser exactamente un remitente/dominio **verificado** en
