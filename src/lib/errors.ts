@@ -38,6 +38,22 @@ const MESSAGES: Record<string, string> = {
   NEED_MORE_OPTIONS: 'Hacen falta al menos 2 opciones para votar.',
   VOTING_CLOSED: 'Se terminó el tiempo para votar.',
   CANNOT_VOTE_OWN_OPTION: 'No podés votar tu propia opción.',
+  INVALID_KIND: 'Elegí si es comida o trago.',
+  CHEF_SPIN_ACTIVE: 'Ya hay una ruleta en curso: terminen esa primero.',
+  CHEF_SPIN_NOT_FOUND: 'Esa ruleta ya no existe.',
+  CHEF_SPIN_CLOSED: 'Esa ruleta ya avanzó.',
+  NOT_ALLOWED: 'Solo quien la arrancó o el organizador puede cancelarla.',
+  INVALID_MINUTES: 'Elegí entre 5 minutos y 10 horas.',
+  CASINO_ACTIVE: 'Ya hay un casino en curso.',
+  CASINO_NOT_FOUND: 'Ese casino ya no existe.',
+  CASINO_CLOSED: 'Ese casino ya cerró.',
+  CASINO_STILL_RUNNING: 'Todavía no terminó el tiempo del casino.',
+  CASINO_NOT_JOINED: 'No entraste a este casino.',
+  CASINO_ALREADY_REPORTED: 'Ya cargaste tu resultado.',
+  INVALID_AMOUNT: 'Poné un monto válido.',
+  INFRACTION_NOT_FOUND: 'Esa infracción ya no está en la lista.',
+  FORFEIT_NOT_FOUND: 'Esa prenda ya no existe.',
+  FORFEIT_ALREADY_DONE: 'Esa prenda ya la cumpliste.',
 }
 
 const AUTH_MESSAGES: [RegExp, string][] = [

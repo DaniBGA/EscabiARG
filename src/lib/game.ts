@@ -1,5 +1,8 @@
 import type {
   CardKey,
+  CasinoSession,
+  ChefSpin,
+  PlayerForfeit,
   DailyMission,
   Difficulty,
   MissionChallenge,
@@ -170,6 +173,10 @@ export function formatCountdown(sec: number) {
 export type PendingItem =
   | { type: 'event'; event: TripEvent }
   | { type: 'challenge'; challenge: MissionChallenge }
+  | { type: 'chefJoin'; spin: ChefSpin }
+  | { type: 'chefVote'; spin: ChefSpin }
+  | { type: 'casinoReport'; session: CasinoSession }
+  | { type: 'forfeit'; forfeit: PlayerForfeit }
 
 export function myPendingItems(detail: TripDetail, me: string, now = Date.now()): PendingItem[] {
   const members = detail.trip.members
@@ -190,8 +197,36 @@ export function myPendingItems(detail: TripDetail, me: string, now = Date.now())
             !detail.options.some((o) => o.challenge_id === c.id && o.author_id !== me)
     if (!done) items.push({ type: 'challenge', challenge: c })
   }
+  for (const s of detail.chefSpins) {
+    if (s.status === 'joining' && !detail.chefPlayers.some((p) => p.spin_id === s.id && p.user_id === me)) {
+      items.push({ type: 'chefJoin', spin: s })
+    }
+    if (
+      s.status === 'voting' &&
+      s.chosen_user_id !== me &&
+      !detail.chefVotes.some((v) => v.spin_id === s.id && v.voter_id === me)
+    ) {
+      items.push({ type: 'chefVote', spin: s })
+    }
+  }
+  for (const c of detail.casinoSessions) {
+    const mine = detail.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === me)
+    const over = c.status === 'reporting' || (c.status === 'running' && Date.parse(c.ends_at) <= now)
+    if (mine && !mine.reported_at && over && Date.parse(c.report_until) > now) {
+      items.push({ type: 'casinoReport', session: c })
+    }
+  }
+  for (const f of detail.playerForfeits) {
+    if (f.user_id === me && f.status === 'to_do') items.push({ type: 'forfeit', forfeit: f })
+  }
   return items
 }
+
+export const activeChefSpin = (spins: ChefSpin[]) =>
+  spins.find((s) => s.status === 'joining' || s.status === 'cooking' || s.status === 'voting') ?? null
+
+export const activeCasino = (sessions: CasinoSession[]) =>
+  sessions.find((c) => c.status === 'running' || c.status === 'reporting') ?? null
 
 /** Puntos que todavía esperan validación */
 export function pendingPoints(events: TripEvent[], me: string) {

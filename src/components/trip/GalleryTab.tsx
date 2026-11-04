@@ -11,14 +11,19 @@ type Props = {
   today: string
 }
 
-type Filter = 'all' | 'drink' | 'quiebre' | 'mission'
+type Filter = 'all' | 'drink' | 'quiebre' | 'mission' | 'more'
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Todas' },
   { key: 'drink', label: '🍺 Tragos' },
   { key: 'quiebre', label: '😵 Quebradas' },
   { key: 'mission', label: '🎯 Misiones' },
+  { key: 'more', label: '🎰 Otras' },
 ]
+
+const MAIN_KINDS = ['drink', 'quiebre', 'mission']
+const matches = (f: Filter, kind: string) =>
+  f === 'all' || (f === 'more' ? !MAIN_KINDS.includes(kind) : kind === f)
 
 type Photo = { path: string; event: TripEvent }
 
@@ -30,7 +35,7 @@ export default function GalleryTab({ events, members, userId, today }: Props) {
   const [open, setOpen] = useState<Photo | null>(null)
 
   const photos: Photo[] = events.flatMap((e) => e.photo_paths.map((path) => ({ path, event: e })))
-  const shown = photos.filter((p) => filter === 'all' || p.event.kind === filter)
+  const shown = photos.filter((p) => matches(filter, p.event.kind))
   const pathsKey = photos.map((p) => p.path).join('|')
 
   useEffect(() => {
@@ -48,7 +53,7 @@ export default function GalleryTab({ events, members, userId, today }: Props) {
   const name = (id: string) =>
     id === userId ? 'Vos' : members.find((m) => m.user_id === id)?.profile?.display_name ?? 'Alguien'
 
-  const count = (f: Filter) => photos.filter((p) => f === 'all' || p.event.kind === f).length
+  const count = (f: Filter) => photos.filter((p) => matches(f, p.event.kind)).length
 
   return (
     <section className="card-box" aria-labelledby="gallery-title">

@@ -42,6 +42,10 @@ export type TripRules = {
   quiebre_penalty: number
   /** Hora (0-23, Argentina) en que termina la jornada */
   day_cutoff_hour: number
+  /** Puntos al que le toca cocinar / preparar el trago y sale bueno */
+  chef_points: number
+  /** Puntos para quien más gana en el casino */
+  casino_points: number
 }
 
 export type EventStatus = 'pending' | 'approved' | 'rejected'
@@ -61,7 +65,7 @@ export type TripEvent = {
   trip_id: string
   user_id: string
   actor_id: string
-  kind: 'drink' | 'mission' | 'quiebre' | 'card'
+  kind: 'drink' | 'mission' | 'quiebre' | 'card' | 'infraction' | 'chef' | 'casino' | 'forfeit'
   points: number
   day: string
   title: string
@@ -70,6 +74,63 @@ export type TripEvent = {
   photo_paths: string[]
   created_at: string
   status: EventStatus
+  ref_id?: string | null
+}
+
+// ---------- Infracciones, prendas, ruleta de cocinero y casino ----------
+
+export type Infraction = { id: string; trip_id: string; name: string; emoji: string }
+export type Forfeit = { id: string; trip_id: string; text: string }
+
+export type PlayerForfeit = {
+  id: string
+  trip_id: string
+  user_id: string
+  source: 'infraction' | 'chef'
+  reason: string
+  forfeit: string
+  status: 'to_do' | 'done'
+  created_at: string
+  done_at: string | null
+}
+
+export type ChefKind = 'comida' | 'trago'
+
+export type ChefSpin = {
+  id: string
+  trip_id: string
+  kind: ChefKind
+  started_by: string
+  status: 'joining' | 'cooking' | 'voting' | 'good' | 'bad' | 'cancelled'
+  chosen_user_id: string | null
+  excluded_user_id: string | null
+  photo_path: string | null
+  created_at: string
+  spun_at: string | null
+}
+
+export type ChefSpinPlayer = { spin_id: string; user_id: string }
+export type ChefVote = { spin_id: string; voter_id: string; good: boolean }
+
+export type CasinoSession = {
+  id: string
+  trip_id: string
+  started_by: string
+  minutes: number
+  prize: number
+  status: 'running' | 'reporting' | 'done' | 'cancelled'
+  starts_at: string
+  ends_at: string
+  report_until: string
+  created_at: string
+}
+
+export type CasinoPlayer = {
+  session_id: string
+  user_id: string
+  amount: number | null
+  event_id: string | null
+  reported_at: string | null
 }
 
 export type EventVote = { event_id: string; voter_id: string; valid: boolean }
@@ -137,6 +198,14 @@ export type TripDetail = {
   badVotes: ChallengeBadVote[]
   options: ChallengeOption[]
   optionVotes: ChallengeOptionVote[]
+  infractions: Infraction[]
+  forfeits: Forfeit[]
+  playerForfeits: PlayerForfeit[]
+  chefSpins: ChefSpin[]
+  chefPlayers: ChefSpinPlayer[]
+  chefVotes: ChefVote[]
+  casinoSessions: CasinoSession[]
+  casinoPlayers: CasinoPlayer[]
 }
 
 /** Operaciones de datos de la app (implementadas con Supabase o con la demo local) */
@@ -170,6 +239,22 @@ export type Api = {
   voteMissionOption(challengeId: string, optionId: string): Promise<void>
   /** Cosas que esperan tu voto, por viaje */
   pendingCounts(): Promise<Record<string, number>>
+
+  saveInfraction(tripId: string, item: { id?: string; name: string; emoji: string }): Promise<void>
+  archiveInfraction(id: string): Promise<void>
+  saveForfeit(tripId: string, item: { id?: string; text: string }): Promise<void>
+  archiveForfeit(id: string): Promise<void>
+  reportInfraction(tripId: string, userId: string, infractionId: string, photoPaths: string[]): Promise<void>
+  completeForfeit(forfeitId: string, photoPath: string | null): Promise<void>
+  startChefSpin(tripId: string, kind: ChefKind): Promise<void>
+  joinChefSpin(spinId: string): Promise<void>
+  cancelChefSpin(spinId: string): Promise<void>
+  chefReady(spinId: string, photoPath: string | null): Promise<void>
+  voteChef(spinId: string, good: boolean): Promise<void>
+  startCasino(tripId: string, minutes: number): Promise<void>
+  joinCasino(sessionId: string): Promise<void>
+  cancelCasino(sessionId: string): Promise<void>
+  reportCasino(sessionId: string, amount: number, photoPath: string): Promise<void>
 }
 
 /** Lanza un Error con el mensaje de Supabase (los RPC usan códigos tipo FRIEND_IS_SELF) */
@@ -247,13 +332,16 @@ async function createTrip(trip: NewTrip): Promise<string> {
 const PHOTO_BUCKET = 'trip-photos'
 
 const TRIP_COLUMNS =
-  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, members:trip_members(user_id, role, profile:profiles(id, display_name))'
+  'id, owner_id, name, trip_date, place, created_at, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, chef_points, casino_points, members:trip_members(user_id, role, profile:profiles(id, display_name))'
 
 async function getTrip(tripId: string): Promise<TripDetail> {
   const sb = requireSupabase()
   // Cierra votaciones vencidas antes de leer
   check(await sb.rpc('tick_trip', { p_trip: tripId }))
-  const [trip, drinks, events, missions, cards, eventVotes, challenges, badVotes, options, optionVotes] = await Promise.all([
+  const [
+    trip, drinks, events, missions, cards, eventVotes, challenges, badVotes, options, optionVotes,
+    infractions, forfeits, playerForfeits, chefSpins, chefPlayers, chefVotes, casinoSessions, casinoPlayers,
+  ] = await Promise.all([
     sb.from('trips').select(TRIP_COLUMNS).eq('id', tripId).single(),
     sb
       .from('trip_drinks')
@@ -263,7 +351,7 @@ async function getTrip(tripId: string): Promise<TripDetail> {
       .order('points'),
     sb
       .from('trip_events')
-      .select('id, trip_id, user_id, actor_id, kind, points, day, title, emoji, detail, photo_paths, created_at, status')
+      .select('id, trip_id, user_id, actor_id, kind, points, day, title, emoji, detail, photo_paths, created_at, status, ref_id')
       .eq('trip_id', tripId)
       .order('created_at', { ascending: false }),
     sb
@@ -284,6 +372,28 @@ async function getTrip(tripId: string): Promise<TripDetail> {
     sb.from('challenge_bad_votes').select('challenge_id, voter_id, bad').eq('trip_id', tripId),
     sb.from('challenge_options').select('id, challenge_id, author_id, text, created_at').eq('trip_id', tripId).order('created_at'),
     sb.from('challenge_option_votes').select('challenge_id, voter_id, option_id').eq('trip_id', tripId),
+    sb.from('trip_infractions').select('id, trip_id, name, emoji').eq('trip_id', tripId).eq('archived', false).order('created_at'),
+    sb.from('trip_forfeits').select('id, trip_id, text').eq('trip_id', tripId).eq('archived', false).order('created_at'),
+    sb
+      .from('player_forfeits')
+      .select('id, trip_id, user_id, source, reason, forfeit, status, created_at, done_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false }),
+    sb
+      .from('chef_spins')
+      .select('id, trip_id, kind, started_by, status, chosen_user_id, excluded_user_id, photo_path, created_at, spun_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    sb.from('chef_spin_players').select('spin_id, user_id').eq('trip_id', tripId),
+    sb.from('chef_votes').select('spin_id, voter_id, good').eq('trip_id', tripId),
+    sb
+      .from('casino_sessions')
+      .select('id, trip_id, started_by, minutes, prize, status, starts_at, ends_at, report_until, created_at')
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    sb.from('casino_players').select('session_id, user_id, amount, event_id, reported_at').eq('trip_id', tripId),
   ])
   return {
     trip: check(trip) as unknown as TripDetail['trip'],
@@ -296,7 +406,27 @@ async function getTrip(tripId: string): Promise<TripDetail> {
     badVotes: check(badVotes) as ChallengeBadVote[],
     options: check(options) as ChallengeOption[],
     optionVotes: check(optionVotes) as ChallengeOptionVote[],
+    infractions: check(infractions) as Infraction[],
+    forfeits: check(forfeits) as Forfeit[],
+    playerForfeits: check(playerForfeits) as PlayerForfeit[],
+    chefSpins: check(chefSpins) as ChefSpin[],
+    chefPlayers: check(chefPlayers) as ChefSpinPlayer[],
+    chefVotes: check(chefVotes) as ChefVote[],
+    casinoSessions: check(casinoSessions) as CasinoSession[],
+    casinoPlayers: check(casinoPlayers) as CasinoPlayer[],
   }
+}
+
+async function saveListItem(table: 'trip_infractions' | 'trip_forfeits', tripId: string, row: Record<string, unknown> & { id?: string }) {
+  const sb = requireSupabase()
+  const { id, ...values } = row
+  if (id) check(await sb.from(table).update(values).eq('id', id))
+  else check(await sb.from(table).insert({ ...values, trip_id: tripId }))
+}
+
+async function archiveListItem(table: 'trip_infractions' | 'trip_forfeits', id: string) {
+  const sb = requireSupabase()
+  check(await sb.from(table).update({ archived: true }).eq('id', id))
 }
 
 async function saveDrink(tripId: string, drink: DrinkInput) {
@@ -411,5 +541,42 @@ export const supabaseApi: Api = {
   async pendingCounts() {
     const rows = (await rpc('my_pending', {})) as { trip_id: string; pending: number }[]
     return Object.fromEntries(rows.map((r) => [r.trip_id, Number(r.pending)]))
+  },
+  saveInfraction: (tripId, item) => saveListItem('trip_infractions', tripId, { ...item, name: item.name.trim() }),
+  archiveInfraction: (id) => archiveListItem('trip_infractions', id),
+  saveForfeit: (tripId, item) => saveListItem('trip_forfeits', tripId, { ...item, text: item.text.trim() }),
+  archiveForfeit: (id) => archiveListItem('trip_forfeits', id),
+  async reportInfraction(tripId, userId, infractionId, photoPaths) {
+    await rpc('report_infraction', { p_trip: tripId, p_user: userId, p_infraction: infractionId, p_photos: photoPaths })
+  },
+  async completeForfeit(forfeitId, photoPath) {
+    await rpc('complete_forfeit', { p_forfeit: forfeitId, p_photo: photoPath })
+  },
+  async startChefSpin(tripId, kind) {
+    await rpc('start_chef_spin', { p_trip: tripId, p_kind: kind })
+  },
+  async joinChefSpin(spinId) {
+    await rpc('join_chef_spin', { p_spin: spinId })
+  },
+  async cancelChefSpin(spinId) {
+    await rpc('cancel_chef_spin', { p_spin: spinId })
+  },
+  async chefReady(spinId, photoPath) {
+    await rpc('chef_ready', { p_spin: spinId, p_photo: photoPath })
+  },
+  async voteChef(spinId, good) {
+    await rpc('vote_chef', { p_spin: spinId, p_good: good })
+  },
+  async startCasino(tripId, minutes) {
+    await rpc('start_casino', { p_trip: tripId, p_minutes: minutes })
+  },
+  async joinCasino(sessionId) {
+    await rpc('join_casino', { p_session: sessionId })
+  },
+  async cancelCasino(sessionId) {
+    await rpc('cancel_casino', { p_session: sessionId })
+  },
+  async reportCasino(sessionId, amount, photoPath) {
+    await rpc('report_casino', { p_session: sessionId, p_amount: amount, p_photo: photoPath })
   },
 }

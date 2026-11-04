@@ -3,6 +3,8 @@ import type { TripDetail } from '../lib/api'
 import { useApi, type AppUser } from '../lib/authContext'
 import { friendlyError } from '../lib/errors'
 import {
+  activeCasino,
+  activeChefSpin,
   cardDef,
   formatDay,
   isActiveChallenge,
@@ -17,7 +19,11 @@ import Avatar from '../components/Avatar'
 import { BackIcon } from '../components/icons'
 import ActivityFeed from '../components/trip/ActivityFeed'
 import CardsSection from '../components/trip/CardsSection'
+import CasinoBox from '../components/trip/CasinoBox'
+import ChefRouletteBox from '../components/trip/ChefRouletteBox'
 import DrinksTab from '../components/trip/DrinksTab'
+import ForfeitsBox from '../components/trip/ForfeitsBox'
+import ListsEditor from '../components/trip/ListsEditor'
 import GalleryTab from '../components/trip/GalleryTab'
 import LogDrinkSheet from '../components/trip/LogDrinkSheet'
 import MissionCard from '../components/trip/MissionCard'
@@ -36,7 +42,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'board', label: 'Tabla' },
   { key: 'feed', label: 'Actividad' },
   { key: 'gallery', label: 'Galería' },
-  { key: 'drinks', label: 'Tragos' },
+  { key: 'drinks', label: 'Reglas' },
 ]
 
 const REFRESH_MS = 20_000
@@ -70,9 +76,13 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   }, [api, tripId])
 
   const fast = Boolean(
-    detail && (detail.challenges.some(isActiveChallenge) || detail.events.some((e) => e.status === 'pending')),
+    detail &&
+      (detail.challenges.some(isActiveChallenge) ||
+        detail.events.some((e) => e.status === 'pending') ||
+        activeChefSpin(detail.chefSpins) ||
+        activeCasino(detail.casinoSessions)),
   )
-  const counting = Boolean(detail?.challenges.some(isActiveChallenge))
+  const counting = Boolean(detail && (detail.challenges.some(isActiveChallenge) || activeCasino(detail.casinoSessions)))
 
   useEffect(() => {
     load()
@@ -106,6 +116,11 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const refresh = (message?: string) => {
     showToast(message)
     load()
+  }
+
+  const goTo = (anchor: string) => {
+    setTab('play')
+    window.setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
   }
 
   if (!detail) {
@@ -220,7 +235,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           </button>
         ))}
 
-        <PendingSection detail={detail} me={me} now={now} onChange={refresh} />
+        <PendingSection detail={detail} me={me} now={now} onChange={refresh} onGo={goTo} />
 
         <nav className="tabs" role="tablist" aria-label="Secciones del viaje">
           {TABS.map((t) => (
@@ -249,6 +264,9 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
                 onChange={refresh}
               />
               <MissionsBoard detail={detail} me={me} today={today} now={now} onChange={refresh} />
+              <ChefRouletteBox detail={detail} me={me} onChange={refresh} />
+              <CasinoBox detail={detail} me={me} now={now} isDemo={user.isDemo} onChange={refresh} />
+              <ForfeitsBox detail={detail} me={me} onChange={refresh} />
               <CardsSection cards={cards} members={members} userId={me} onChange={refresh} />
             </>
           )}
@@ -260,7 +278,16 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           )}
           {tab === 'gallery' && <GalleryTab events={events} members={members} userId={me} today={today} />}
           {tab === 'drinks' && (
-            <DrinksTab tripId={tripId} drinks={drinks} rules={trip} isOwner={isOwner} onChange={refresh} />
+            <>
+              <DrinksTab tripId={tripId} drinks={drinks} rules={trip} isOwner={isOwner} onChange={refresh} />
+              <ListsEditor
+                tripId={tripId}
+                infractions={detail.infractions}
+                forfeits={detail.forfeits}
+                isOwner={isOwner}
+                onChange={refresh}
+              />
+            </>
           )}
         </div>
       </main>

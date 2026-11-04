@@ -31,6 +31,8 @@ const RULE_FIELDS: { key: PointRule; label: string }[] = [
   { key: 'mission_points_medium', label: '🔥 Misión intermedia' },
   { key: 'mission_points_extreme', label: '💀 Misión extrema' },
   { key: 'quiebre_penalty', label: '😵 Descuento por quebrar' },
+  { key: 'chef_points', label: '👨‍🍳 Cocinar o preparar bien' },
+  { key: 'casino_points', label: '🎰 Ganar el casino' },
 ]
 
 function DrinkForm({ initial, onSave, onCancel }: {
@@ -116,6 +118,8 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
     mission_points_medium: String(rules.mission_points_medium),
     mission_points_extreme: String(rules.mission_points_extreme),
     quiebre_penalty: String(rules.quiebre_penalty),
+    chef_points: String(rules.chef_points),
+    casino_points: String(rules.casino_points),
   }))
   const [cutoff, setCutoff] = useState(rules.day_cutoff_hour)
   const [savingRules, setSavingRules] = useState(false)

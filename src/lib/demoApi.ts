@@ -1,6 +1,14 @@
 import type {
   Api,
   CardKey,
+  CasinoPlayer,
+  CasinoSession,
+  ChefSpin,
+  ChefSpinPlayer,
+  ChefVote,
+  Forfeit,
+  Infraction,
+  PlayerForfeit,
   ChallengeBadVote,
   ChallengeOption,
   ChallengeOptionVote,
@@ -30,6 +38,7 @@ import {
   tripDay,
 } from './game'
 import { MISSIONS } from './missions'
+import { SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
 
 /**
  * Modo demo: datos de ejemplo guardados solo en este navegador (localStorage + IndexedDB).
@@ -39,7 +48,7 @@ import { MISSIONS } from './missions'
 
 export const DEMO_USER_ID = 'demo-me'
 const STORAGE_KEY = 'escabiarg:demo-data'
-const VERSION = 3
+const VERSION = 4
 
 type StoredTrip = Omit<Trip, 'members'> &
   TripRules & {
@@ -61,6 +70,14 @@ type DemoData = {
   badVotes: (ChallengeBadVote & { trip_id: string })[]
   options: (ChallengeOption & { trip_id: string })[]
   optionVotes: (ChallengeOptionVote & { trip_id: string })[]
+  infractions: (Infraction & { archived: boolean })[]
+  forfeits: (Forfeit & { archived: boolean })[]
+  playerForfeits: PlayerForfeit[]
+  chefSpins: ChefSpin[]
+  chefPlayers: (ChefSpinPlayer & { trip_id: string })[]
+  chefVotes: (ChefVote & { trip_id: string })[]
+  casinoSessions: CasinoSession[]
+  casinoPlayers: (CasinoPlayer & { trip_id: string })[]
 }
 
 const PEOPLE: Profile[] = [
@@ -88,6 +105,15 @@ const DEFAULT_RULES: TripRules = {
   mission_points_extreme: 50,
   quiebre_penalty: 30,
   day_cutoff_hour: DEFAULT_CUTOFF_HOUR,
+  chef_points: 20,
+  casino_points: 30,
+}
+
+function seedLists(tripId: string) {
+  return {
+    infractions: SUGGESTED_INFRACTIONS.map((i) => ({ id: newId(), trip_id: tripId, ...i, archived: false })),
+    forfeits: SUGGESTED_FORFEITS.map((text) => ({ id: newId(), trip_id: tripId, text, archived: false })),
+  }
 }
 
 // Tiempos de las votaciones (iguales a la base)
@@ -222,6 +248,14 @@ function seed(): DemoData {
     },
   ]
 
+  const lists1 = seedLists(T1)
+  const lists2 = seedLists(T2)
+  // Ayer Tincho reportó que te levantaste tarde: tenés una prenda pendiente
+  const lateEvent = ev('demo-me', 'infraction', 0, yesterday, 15 * 60, 'Levantarse tarde', '😴', {
+    actor_id: 'demo-tincho',
+  })
+  events.push(lateEvent)
+
   return {
     version: VERSION,
     me: { id: DEMO_USER_ID, display_name: 'Vos', friend_code: 'DEMO42' },
@@ -266,6 +300,26 @@ function seed(): DemoData {
     badVotes: [{ challenge_id: challengeId, trip_id: T1, voter_id: 'demo-tincho', bad: true }],
     options: [],
     optionVotes: [],
+    infractions: [...lists1.infractions, ...lists2.infractions],
+    forfeits: [...lists1.forfeits, ...lists2.forfeits],
+    playerForfeits: [
+      {
+        id: newId(),
+        trip_id: T1,
+        user_id: DEMO_USER_ID,
+        source: 'infraction',
+        reason: 'Levantarse tarde',
+        forfeit: SUGGESTED_FORFEITS[1],
+        status: 'to_do',
+        created_at: lateEvent.created_at,
+        done_at: null,
+      },
+    ],
+    chefSpins: [],
+    chefPlayers: [],
+    chefVotes: [],
+    casinoSessions: [],
+    casinoPlayers: [],
   }
 }
 
@@ -394,6 +448,7 @@ function resolveEvent(data: DemoData, e: DemoData['events'][number]) {
       }
     }
     e.status = 'approved'
+    if (e.kind === 'infraction') assignForfeit(data, e.trip_id, e.user_id, 'infraction', e.title)
   } else if (no * 2 >= eligible) {
     if (e.kind === 'drink' && e.card_id) {
       const card = data.cards.find((c) => c.id === e.card_id)
@@ -401,6 +456,103 @@ function resolveEvent(data: DemoData, e: DemoData['events'][number]) {
     }
     e.status = 'rejected'
   }
+  if (e.status !== 'pending' && e.kind === 'casino' && e.ref_id) {
+    const session = data.casinoSessions.find((c) => c.id === e.ref_id)
+    if (session) resolveCasino(data, session)
+  }
+}
+
+function assignForfeit(data: DemoData, tripId: string, userId: string, source: PlayerForfeit['source'], reason: string) {
+  const pool = data.forfeits.filter((f) => f.trip_id === tripId && !f.archived)
+  const pick = pool[Math.floor(Math.random() * pool.length)]
+  data.playerForfeits.unshift({
+    id: newId(),
+    trip_id: tripId,
+    user_id: userId,
+    source,
+    reason,
+    forfeit: pick?.text ?? 'Lavar los platos de todos.',
+    status: 'to_do',
+    created_at: new Date().toISOString(),
+    done_at: null,
+  })
+}
+
+function chefTrySpin(data: DemoData, spin: ChefSpin) {
+  if (spin.status !== 'joining') return
+  const members = membersOf(data, spin.trip_id)
+  const joined = data.chefPlayers.filter((p) => p.spin_id === spin.id).length
+  if (joined < members.length) return
+  const previous = data.chefSpins
+    .filter((x) => x.trip_id === spin.trip_id && x.id !== spin.id && x.chosen_user_id)
+    .sort((a, b) => (b.spun_at ?? '').localeCompare(a.spun_at ?? ''))[0]?.chosen_user_id ?? null
+  const candidates = members.map((m) => m.user_id).filter((id) => members.length === 1 || id !== previous)
+  spin.chosen_user_id = candidates[Math.floor(Math.random() * candidates.length)]
+  spin.excluded_user_id = previous
+  spin.status = 'cooking'
+  spin.spun_at = new Date().toISOString()
+}
+
+function resolveChef(data: DemoData, spin: ChefSpin) {
+  if (spin.status !== 'voting' || !spin.chosen_user_id) return
+  const trip = data.trips.find((t) => t.id === spin.trip_id)
+  const eligible = membersOf(data, spin.trip_id).filter((m) => m.user_id !== spin.chosen_user_id).length
+  const votes = data.chefVotes.filter((v) => v.spin_id === spin.id)
+  const good = votes.filter((v) => v.good).length
+  const bad = votes.length - good
+  const what = spin.kind === 'comida' ? 'la comida' : 'el trago'
+  const base = {
+    trip_id: spin.trip_id,
+    user_id: spin.chosen_user_id,
+    actor_id: spin.chosen_user_id,
+    kind: 'chef' as const,
+    photo_paths: spin.photo_path ? [spin.photo_path] : [],
+    ref_id: spin.id,
+  }
+  if (eligible === 0 || good * 2 > eligible) {
+    addEvent(data, {
+      ...base,
+      points: trip?.chef_points ?? 20,
+      title: spin.kind === 'comida' ? 'Cocinó y salió bueno' : 'Preparó un trago de 10',
+      emoji: spin.kind === 'comida' ? '👨‍🍳' : '🍹',
+    })
+    spin.status = 'good'
+  } else if (bad * 2 >= eligible) {
+    addEvent(data, { ...base, points: 0, title: `No salió bueno ${what}: le toca prenda`, emoji: '🤢' })
+    assignForfeit(data, spin.trip_id, spin.chosen_user_id, 'chef', `No salió bueno ${what}`)
+    spin.status = 'bad'
+  }
+}
+
+function resolveCasino(data: DemoData, c: CasinoSession, now = Date.now()) {
+  if (c.status === 'done' || c.status === 'cancelled') return
+  if (c.status === 'running') {
+    if (now < Date.parse(c.ends_at)) return
+    c.status = 'reporting'
+  }
+  const players = data.casinoPlayers.filter((p) => p.session_id === c.id)
+  const eventOf = (p: CasinoPlayer) => data.events.find((e) => e.id === p.event_id)
+  const missing = players.some((p) => !p.reported_at)
+  const pending = players.some((p) => eventOf(p)?.status === 'pending')
+  if ((missing || pending) && now < Date.parse(c.report_until)) return
+  const approved = players.filter((p) => eventOf(p)?.status === 'approved' && p.amount !== null)
+  const top = Math.max(-Infinity, ...approved.map((p) => p.amount as number))
+  if (top > 0) {
+    for (const p of approved.filter((x) => x.amount === top)) {
+      addEvent(data, {
+        trip_id: c.trip_id,
+        user_id: p.user_id,
+        actor_id: p.user_id,
+        kind: 'casino',
+        points: c.prize,
+        title: 'Ganó el casino',
+        emoji: '🎰',
+        detail: formatMoney(top),
+        ref_id: c.id,
+      })
+    }
+  }
+  c.status = 'done'
 }
 
 function resolveChallenge(data: DemoData, c: MissionChallenge, now = Date.now()) {
@@ -507,6 +659,65 @@ function botsAct(data: DemoData, now = Date.now()) {
       })
       resolveChallenge(data, c, now)
     }
+
+    // Ruleta de cocinero: entran y votan solos (casi siempre dicen que salió bueno)
+    for (const spin of data.chefSpins) {
+      if (spin.trip_id !== trip.id) continue
+      const since = now - Date.parse(spin.status === 'joining' ? spin.created_at : spin.spun_at ?? spin.created_at)
+      bots.forEach((bot, i) => {
+        const delay = 2500 + i * 1500
+        if (spin.status === 'joining' && since >= delay && !data.chefPlayers.some((p) => p.spin_id === spin.id && p.user_id === bot)) {
+          data.chefPlayers.push({ spin_id: spin.id, trip_id: trip.id, user_id: bot })
+        }
+        // Si le tocó a un bot, "cocina" en unos segundos
+        if (spin.status === 'cooking' && spin.chosen_user_id === bot && since >= 6000) {
+          spin.status = 'voting'
+          spin.photo_path = seedPhotoPath(spin.kind === 'comida' ? '🍝' : '🍹', 30)
+          spin.spun_at = iso(now)
+        }
+        if (
+          spin.status === 'voting' &&
+          spin.chosen_user_id !== bot &&
+          since >= delay + 1000 &&
+          !data.chefVotes.some((v) => v.spin_id === spin.id && v.voter_id === bot)
+        ) {
+          data.chefVotes.push({ spin_id: spin.id, trip_id: trip.id, voter_id: bot, good: Math.random() < 0.75 })
+        }
+      })
+      chefTrySpin(data, spin)
+      resolveChef(data, spin)
+    }
+
+    // Casino: los bots entran y, al terminar, cargan su resultado con foto
+    for (const c of data.casinoSessions) {
+      if (c.trip_id !== trip.id) continue
+      resolveCasino(data, c, now)
+      bots.forEach((bot, i) => {
+        if (c.status === 'running' && now - Date.parse(c.starts_at) >= 3000 + i * 1500 &&
+            !data.casinoPlayers.some((p) => p.session_id === c.id && p.user_id === bot)) {
+          data.casinoPlayers.push({ session_id: c.id, trip_id: trip.id, user_id: bot, amount: null, event_id: null, reported_at: null })
+        }
+        const player = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === bot)
+        if (c.status === 'reporting' && player && !player.reported_at && now - Date.parse(c.ends_at) >= 3000 + i * 2000) {
+          const amount = Math.round((Math.random() * 30000 - 10000) / 500) * 500
+          const e = addEvent(data, {
+            trip_id: trip.id,
+            user_id: bot,
+            actor_id: bot,
+            kind: 'casino',
+            points: 0,
+            title: 'Resultado en el casino',
+            emoji: '🎰',
+            detail: formatMoney(amount),
+            photo_paths: [seedPhotoPath('🎰', 280)],
+            status: 'pending',
+            ref_id: c.id,
+          })
+          Object.assign(player, { amount, event_id: e.id, reported_at: iso(now) })
+        }
+      })
+      resolveCasino(data, c, now)
+    }
   }
 }
 
@@ -526,6 +737,14 @@ function buildDetail(data: DemoData, trip: StoredTrip): TripDetail {
     badVotes: data.badVotes.filter((v) => v.trip_id === id),
     options: data.options.filter((o) => o.trip_id === id),
     optionVotes: data.optionVotes.filter((v) => v.trip_id === id),
+    infractions: data.infractions.filter((x) => x.trip_id === id && !x.archived).map(({ archived: _a, ...x }) => x),
+    forfeits: data.forfeits.filter((x) => x.trip_id === id && !x.archived).map(({ archived: _a, ...x }) => x),
+    playerForfeits: data.playerForfeits.filter((f) => f.trip_id === id),
+    chefSpins: data.chefSpins.filter((x) => x.trip_id === id).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    chefPlayers: data.chefPlayers.filter((x) => x.trip_id === id),
+    chefVotes: data.chefVotes.filter((x) => x.trip_id === id),
+    casinoSessions: data.casinoSessions.filter((x) => x.trip_id === id).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    casinoPlayers: data.casinoPlayers.filter((x) => x.trip_id === id),
   }
 }
 
@@ -606,6 +825,9 @@ export const demoApi: Api = {
         ...memberIds.map((user_id) => ({ user_id, role: 'member' as const })),
       ],
     })
+    const lists = seedLists(id)
+    data.infractions.push(...lists.infractions)
+    data.forfeits.push(...lists.forfeits)
     save(data)
     return id
   },
@@ -943,5 +1165,267 @@ export const demoApi: Api = {
       if (n > 0) result[trip.id] = n
     }
     return result
+  },
+
+  // ---------- Infracciones, prendas, ruleta y casino ----------
+
+  async saveInfraction(tripId, item) {
+    await wait()
+    const data = load()
+    requireOwner(data, tripId)
+    const name = item.name.trim().slice(0, 60)
+    if (!name) throw new Error('Datos inválidos')
+    const existing = item.id && data.infractions.find((x) => x.id === item.id && x.trip_id === tripId)
+    if (existing) Object.assign(existing, { name, emoji: item.emoji })
+    else data.infractions.push({ id: newId(), trip_id: tripId, name, emoji: item.emoji, archived: false })
+    save(data)
+  },
+
+  async archiveInfraction(id) {
+    await wait()
+    const data = load()
+    const item = data.infractions.find((x) => x.id === id)
+    if (!item) return
+    requireOwner(data, item.trip_id)
+    item.archived = true
+    save(data)
+  },
+
+  async saveForfeit(tripId, item) {
+    await wait()
+    const data = load()
+    requireOwner(data, tripId)
+    const text = item.text.trim().slice(0, 140)
+    if (text.length < 3) throw new Error('Datos inválidos')
+    const existing = item.id && data.forfeits.find((x) => x.id === item.id && x.trip_id === tripId)
+    if (existing) existing.text = text
+    else data.forfeits.push({ id: newId(), trip_id: tripId, text, archived: false })
+    save(data)
+  },
+
+  async archiveForfeit(id) {
+    await wait()
+    const data = load()
+    const item = data.forfeits.find((x) => x.id === id)
+    if (!item) return
+    requireOwner(data, item.trip_id)
+    item.archived = true
+    save(data)
+  },
+
+  async reportInfraction(tripId, userId, infractionId, photoPaths) {
+    await wait()
+    const data = load()
+    const trip = tripFor(data, tripId)
+    if (!trip.members.some((m) => m.user_id === userId)) throw new Error('NOT_TRIP_MEMBER')
+    const inf = data.infractions.find((x) => x.id === infractionId && x.trip_id === tripId && !x.archived)
+    if (!inf) throw new Error('INFRACTION_NOT_FOUND')
+    const photos = [...new Set(photoPaths)]
+    if (photos.length > 3 || photos.length !== photoPaths.length) throw new Error('PHOTO_REQUIRED')
+    for (const p of photos) checkPhoto(data, tripId, p)
+    const e = addEvent(data, {
+      trip_id: tripId,
+      user_id: userId,
+      actor_id: data.me.id,
+      kind: 'infraction',
+      points: 0,
+      title: inf.name,
+      emoji: inf.emoji,
+      photo_paths: photos,
+      status: 'pending',
+      ref_id: inf.id,
+    })
+    resolveEvent(data, e)
+    save(data)
+  },
+
+  async completeForfeit(forfeitId, photoPath) {
+    await wait()
+    const data = load()
+    const f = data.playerForfeits.find((x) => x.id === forfeitId && x.user_id === data.me.id)
+    if (!f) throw new Error('FORFEIT_NOT_FOUND')
+    if (f.status !== 'to_do') throw new Error('FORFEIT_ALREADY_DONE')
+    if (photoPath) checkPhoto(data, f.trip_id, photoPath)
+    f.status = 'done'
+    f.done_at = new Date().toISOString()
+    addEvent(data, {
+      trip_id: f.trip_id,
+      user_id: data.me.id,
+      actor_id: data.me.id,
+      kind: 'forfeit',
+      points: 0,
+      title: 'Cumplió su prenda',
+      emoji: '🙈',
+      detail: f.forfeit,
+      photo_paths: photoPath ? [photoPath] : [],
+      ref_id: f.id,
+    })
+    save(data)
+  },
+
+  async startChefSpin(tripId, kind) {
+    await wait()
+    const data = load()
+    tripFor(data, tripId)
+    if (data.chefSpins.some((x) => x.trip_id === tripId && ['joining', 'cooking', 'voting'].includes(x.status))) {
+      throw new Error('CHEF_SPIN_ACTIVE')
+    }
+    const spin: ChefSpin = {
+      id: newId(),
+      trip_id: tripId,
+      kind,
+      started_by: data.me.id,
+      status: 'joining',
+      chosen_user_id: null,
+      excluded_user_id: null,
+      photo_path: null,
+      created_at: iso(Date.now()),
+      spun_at: null,
+    }
+    data.chefSpins.unshift(spin)
+    data.chefPlayers.push({ spin_id: spin.id, trip_id: tripId, user_id: data.me.id })
+    chefTrySpin(data, spin)
+    save(data)
+  },
+
+  async joinChefSpin(spinId) {
+    await wait()
+    const data = load()
+    const spin = data.chefSpins.find((x) => x.id === spinId)
+    if (!spin) throw new Error('CHEF_SPIN_NOT_FOUND')
+    tripFor(data, spin.trip_id)
+    if (spin.status !== 'joining') throw new Error('CHEF_SPIN_CLOSED')
+    if (!data.chefPlayers.some((p) => p.spin_id === spinId && p.user_id === data.me.id)) {
+      data.chefPlayers.push({ spin_id: spinId, trip_id: spin.trip_id, user_id: data.me.id })
+    }
+    chefTrySpin(data, spin)
+    save(data)
+  },
+
+  async cancelChefSpin(spinId) {
+    await wait()
+    const data = load()
+    const spin = data.chefSpins.find((x) => x.id === spinId)
+    if (!spin) throw new Error('CHEF_SPIN_NOT_FOUND')
+    const trip = tripFor(data, spin.trip_id)
+    if (spin.status !== 'joining') throw new Error('CHEF_SPIN_CLOSED')
+    if (spin.started_by !== data.me.id && trip.owner_id !== data.me.id) throw new Error('NOT_ALLOWED')
+    spin.status = 'cancelled'
+    save(data)
+  },
+
+  async chefReady(spinId, photoPath) {
+    await wait()
+    const data = load()
+    const spin = data.chefSpins.find((x) => x.id === spinId)
+    if (!spin) throw new Error('CHEF_SPIN_NOT_FOUND')
+    tripFor(data, spin.trip_id)
+    if (spin.status !== 'cooking') throw new Error('CHEF_SPIN_CLOSED')
+    if (photoPath) checkPhoto(data, spin.trip_id, photoPath)
+    spin.status = 'voting'
+    spin.photo_path = photoPath
+    spin.spun_at = iso(Date.now())
+    resolveChef(data, spin)
+    save(data)
+  },
+
+  async voteChef(spinId, good) {
+    await wait()
+    const data = load()
+    const spin = data.chefSpins.find((x) => x.id === spinId)
+    if (!spin) throw new Error('CHEF_SPIN_NOT_FOUND')
+    tripFor(data, spin.trip_id)
+    if (spin.status !== 'voting') throw new Error('CHEF_SPIN_CLOSED')
+    if (spin.chosen_user_id === data.me.id) throw new Error('CANNOT_VOTE_OWN')
+    data.chefVotes = data.chefVotes.filter((v) => !(v.spin_id === spinId && v.voter_id === data.me.id))
+    data.chefVotes.push({ spin_id: spinId, trip_id: spin.trip_id, voter_id: data.me.id, good })
+    resolveChef(data, spin)
+    save(data)
+  },
+
+  async startCasino(tripId, minutes) {
+    await wait()
+    const data = load()
+    const trip = tripFor(data, tripId)
+    botsAct(data)
+    // En la demo se permite 1 minuto para probar rápido
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600) throw new Error('INVALID_MINUTES')
+    if (data.casinoSessions.some((c) => c.trip_id === tripId && (c.status === 'running' || c.status === 'reporting'))) {
+      throw new Error('CASINO_ACTIVE')
+    }
+    const now = Date.now()
+    const session: CasinoSession = {
+      id: newId(),
+      trip_id: tripId,
+      started_by: data.me.id,
+      minutes,
+      prize: trip.casino_points,
+      status: 'running',
+      starts_at: iso(now),
+      ends_at: iso(now + minutes * 60_000),
+      report_until: iso(now + (minutes + 60) * 60_000),
+      created_at: iso(now),
+    }
+    data.casinoSessions.unshift(session)
+    data.casinoPlayers.push({ session_id: session.id, trip_id: tripId, user_id: data.me.id, amount: null, event_id: null, reported_at: null })
+    save(data)
+  },
+
+  async joinCasino(sessionId) {
+    await wait()
+    const data = load()
+    const c = data.casinoSessions.find((x) => x.id === sessionId)
+    if (!c) throw new Error('CASINO_NOT_FOUND')
+    tripFor(data, c.trip_id)
+    if (c.status !== 'running' || Date.now() >= Date.parse(c.ends_at)) throw new Error('CASINO_CLOSED')
+    if (!data.casinoPlayers.some((p) => p.session_id === c.id && p.user_id === data.me.id)) {
+      data.casinoPlayers.push({ session_id: c.id, trip_id: c.trip_id, user_id: data.me.id, amount: null, event_id: null, reported_at: null })
+    }
+    save(data)
+  },
+
+  async cancelCasino(sessionId) {
+    await wait()
+    const data = load()
+    const c = data.casinoSessions.find((x) => x.id === sessionId)
+    if (!c) throw new Error('CASINO_NOT_FOUND')
+    const trip = tripFor(data, c.trip_id)
+    if (c.status !== 'running') throw new Error('CASINO_CLOSED')
+    if (c.started_by !== data.me.id && trip.owner_id !== data.me.id) throw new Error('NOT_ALLOWED')
+    c.status = 'cancelled'
+    save(data)
+  },
+
+  async reportCasino(sessionId, amount, photoPath) {
+    await wait()
+    const data = load()
+    const c = data.casinoSessions.find((x) => x.id === sessionId)
+    if (!c) throw new Error('CASINO_NOT_FOUND')
+    tripFor(data, c.trip_id)
+    resolveCasino(data, c)
+    if (c.status === 'running') throw new Error('CASINO_STILL_RUNNING')
+    if (c.status !== 'reporting') throw new Error('CASINO_CLOSED')
+    const player = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === data.me.id)
+    if (!player) throw new Error('CASINO_NOT_JOINED')
+    if (player.reported_at) throw new Error('CASINO_ALREADY_REPORTED')
+    if (!Number.isInteger(amount) || Math.abs(amount) > 100_000_000) throw new Error('INVALID_AMOUNT')
+    checkPhoto(data, c.trip_id, photoPath)
+    const e = addEvent(data, {
+      trip_id: c.trip_id,
+      user_id: data.me.id,
+      actor_id: data.me.id,
+      kind: 'casino',
+      points: 0,
+      title: 'Resultado en el casino',
+      emoji: '🎰',
+      detail: formatMoney(amount),
+      photo_paths: [photoPath],
+      status: 'pending',
+      ref_id: c.id,
+    })
+    Object.assign(player, { amount, event_id: e.id, reported_at: iso(Date.now()) })
+    resolveEvent(data, e)
+    resolveCasino(data, c)
+    save(data)
   },
 }

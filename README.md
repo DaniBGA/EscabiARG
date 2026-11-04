@@ -40,6 +40,7 @@ Cuando la app esté lista para el público, ocultá la demo con `VITE_ENABLE_DEM
    2. `supabase/migrations/20261105000000_juego_del_viaje.sql` (también crea el
       bucket privado `trip-photos` de Storage para las fotos)
    3. `supabase/migrations/20261106000000_validaciones_y_votaciones.sql`
+   4. `supabase/migrations/20261107000000_prendas_ruleta_casino.sql`
 
    (o con la CLI: `supabase link` + `supabase db push`).
 3. **Login** (*Authentication → Sign In / Providers*):
@@ -102,7 +103,19 @@ Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
   restan puntos (30 por defecto).
 - **Puntaje diario y general**: solo cuentan los puntos validados. La jornada
   termina a la hora que elige el organizador (por defecto **6:00, hora Argentina**).
-- **Galería**: todas las fotos del viaje (tragos, quebradas y misiones), con filtros.
+- **Galería**: todas las fotos del viaje (tragos, quebradas, misiones, casino,
+  cocina y prendas), con filtros.
+- **Infracciones y prendas**: cualquiera reporta una infracción ("Levantarse tarde",
+  "Terminar roto"…), con fotos opcionales. Si la valida la mayoría, al infractor le
+  toca una **prenda** al azar, que después marca como cumplida. Las listas vienen
+  sugeridas y el organizador las edita.
+- **¿Quién cocina? / ¿Quién prepara el trago?**: una ruleta que gira recién cuando
+  **se metieron todos**, y nunca le toca al mismo que la vez anterior. Cuando está
+  listo, el grupo vota: si salió bueno suma puntos (20 por defecto), si no, prenda.
+- **Casino**: se arranca con un temporizador y entran los que juegan. Al terminar,
+  cada uno carga cuánto ganó o perdió con **foto de las fichas o el ticket**; el
+  grupo lo valida y el que más ganó se lleva los puntos (30 por defecto). Hay 1 hora
+  para cargar los resultados.
 - **Ruleta**: cuando termina una jornada, quien más sumó (si hay empate, todos los
   empatados) gira la ruleta una vez y gana una **carta comodín** para usar cuando quiera:
 
@@ -128,10 +141,15 @@ Se entra tocando un viaje en el inicio (`#/viaje/<id>`).
 - `event_votes`: validaciones de fotos de tragos y quiebres.
 - `mission_challenges`, `challenge_bad_votes`, `challenge_options`,
   `challenge_option_votes`: votaciones de misiones.
+- `trip_infractions`, `trip_forfeits`, `player_forfeits`: infracciones y prendas.
+- `chef_spins`, `chef_spin_players`, `chef_votes`: ruleta de quién cocina.
+- `casino_sessions`, `casino_players`: casino con temporizador.
 
 Las escrituras pasan por funciones (`add_friend_by_code`, `remove_friend`,
 `create_trip`, `log_drink`, `choose_daily_mission`, `complete_daily_mission`,
 `report_quiebre`, `spin_roulette`, `redeem_card`, `vote_event`,
 `start_mission_challenge`, `vote_mission_bad`, `propose_mission_option`,
-`start_option_vote`, `vote_mission_option`) que validan todo del lado del servidor; con RLS cada usuario
+`start_option_vote`, `vote_mission_option`, `report_infraction`, `complete_forfeit`,
+`start_chef_spin`, `join_chef_spin`, `chef_ready`, `vote_chef`, `start_casino`,
+`join_casino`, `report_casino`) que validan todo del lado del servidor; con RLS cada usuario
 solo ve su perfil, sus amigos y los viajes en los que participa.

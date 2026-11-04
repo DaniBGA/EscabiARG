@@ -62,10 +62,14 @@ export default function ActivityFeed({ events, eventVotes, members, userId, toda
                 <div className="feed-body">
                   <p className="feed-line">
                     <strong>{name(e.user_id)}</strong>{' '}
-                    {e.kind === 'drink' ? `· ${e.title}` : e.kind === 'quiebre' ? e.title.toLowerCase() : `· ${e.title}`}
+                    {e.kind === 'quiebre'
+                      ? e.title.toLowerCase()
+                      : e.kind === 'infraction'
+                        ? `· infracción: ${e.title}`
+                        : `· ${e.title}`}
                   </p>
                   {e.detail && <p className="feed-detail">“{e.detail}”</p>}
-                  {e.kind === 'quiebre' && e.actor_id !== e.user_id && (
+                  {(e.kind === 'quiebre' || e.kind === 'infraction') && e.actor_id !== e.user_id && (
                     <p className="feed-detail">Lo reportó {name(e.actor_id)}</p>
                   )}
                   {e.photo_paths.length > 0 && (
