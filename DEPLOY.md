@@ -46,6 +46,18 @@ Necesitás:
 > | 4 | `20261107000000_prendas_ruleta_casino.sql` |
 > | 5 | `20261108000000_duelos.sql` |
 > | 6 | `20261109000000_previa_y_salida.sql` |
+> | 7 | `20261110000000_tiempo_real.sql` |
+> | 8 | `20261111000000_quemar.sql` |
+
+### 2.b Tiempo real
+
+La app se actualiza sola en todos los celulares apenas alguien carga un trago, vota,
+arranca un duelo, etc. (Supabase **Realtime**). No hay que activar nada: viene prendido
+en los proyectos de Supabase y la migración 7 ya configura quién puede escuchar cada
+viaje (solo sus miembros).
+
+> Si Realtime no anda por algún motivo, la app no se rompe: vuelve a refrescar sola
+> cada unos segundos, como antes.
 
 ## 3. Configurar el login
 
@@ -59,11 +71,124 @@ Todo esto está en **Authentication** (menú izquierdo).
    como mucho ~2 por hora. Si lo dejás activado, tus amigos se registran pero nunca
    les llega el mail para confirmar.
    - **Para arrancar:** desactivá **Confirm email**. Se registran y entran directo.
-   - **Para producción:** configurá un SMTP propio (por ejemplo Resend, Brevo o
-     SendGrid tienen planes gratis) en **Authentication → Emails → SMTP Settings**
-     y después volvé a activar **Confirm email**.
+   - **Para producción:** configurá un SMTP propio en
+     **Authentication → Emails → SMTP Settings** y después volvé a activar
+     **Confirm email**. Recomendado: **Brevo** (gratis para siempre, paso 3.1.b).
 
-### 3.1.b Mails propios con SendGrid
+### 3.1.b Mails gratis con Brevo (recomendado)
+
+Brevo tiene un plan gratis sin vencimiento de **300 mails por día**, que alcanza de
+sobra para las confirmaciones de cuenta. Los menús de Brevo cambian de nombre seguido:
+si algo no aparece exacto, buscá el equivalente.
+
+**A. En Brevo**
+
+1. **Cuenta:** entrá a <https://www.brevo.com> → **Sign up free**. Confirmá tu mail y
+   completá todo el perfil que te pide (nombre, empresa —podés poner `EscabiARG`—,
+   dirección, teléfono). Con el perfil incompleto Brevo puede no habilitarte el envío.
+2. **Remitente:** menú de tu cuenta (arriba a la derecha) →
+   **Senders, Domains & Dedicated IPs** → pestaña **Senders** → **Add sender**:
+   - **From name:** `EscabiARG`
+   - **From email:** la dirección desde la que van a salir los mails.
+   - Guardá. Brevo manda un **código de 6 dígitos** a esa casilla
+     (asunto parecido a *"[Brevo] Activate your new sender"*) → pegalo → **Verify**.
+   - **Con dominio propio** (lo ideal): en la pestaña **Domains** → **Add a domain**
+     → cargá en el DNS de tu dominio los registros que te da (código de Brevo, DKIM,
+     DMARC). Así los mails llegan a la bandeja de entrada.
+   - **Sin dominio (con un Gmail):** sirve para arrancar, pero Gmail/Hotmail no se
+     pueden autenticar en Brevo y muchos mails van a caer en **spam** o no llegar.
+     Avisales a tus amigos que revisen spam.
+3. **Credenciales SMTP:** menú de tu cuenta → **SMTP & API** → pestaña **SMTP**:
+   - Anotá el **Login** tal cual aparece. En cuentas nuevas es un mail generado del
+     estilo `9a1b2c001@smtp-brevo.com`; en algunas cuentas viejas es tu mail de Brevo.
+   - **Generate a new SMTP key** → nombre `supabase-escabiarg` → **Generate** →
+     copiá la clave: **se muestra una sola vez**. Es distinta de la API key (las API
+     keys empiezan con `xkeysib-` y **no** sirven para SMTP).
+
+**B. En Supabase**
+
+4. **Authentication → Emails → SMTP Settings** → activá **Enable custom SMTP**:
+
+   | Campo | Valor |
+   | --- | --- |
+   | Sender email address | **exactamente** el *From email* verificado en el paso 2 |
+   | Sender name | `EscabiARG` |
+   | Host | `smtp-relay.brevo.com` |
+   | Port number | `587` |
+   | Minimum interval per user | dejalo como está (60 segundos) |
+   | Username | el **Login** del paso 3 |
+   | Password | la **SMTP key** del paso 3 (no la API key ni tu contraseña de Brevo) |
+
+   **Save changes.**
+5. **Authentication → Rate Limits:** con SMTP propio arranca en 30 mails por hora;
+   dejalo así (el tope de Brevo es 300 por día).
+6. **Sign In / Providers → Email:** activá **Confirm email**.
+7. **Mail en español:** **Authentication → Emails → Templates → Confirm signup** → pegá
+   [`supabase/email-templates/confirmar-cuenta.html`](supabase/email-templates/confirmar-cuenta.html)
+   y de asunto *"Confirmá tu cuenta de EscabiARG 🍺"*.
+8. Revisá que el paso 6 de esta guía (**URL Configuration**) esté hecho: si no, el
+   link del mail te manda a `localhost`.
+
+**C. Probar**
+
+9. Desde la app: **Continuar con email → Creá tu cuenta** con un mail que nunca
+   hayas usado. Tiene que aparecer *"Te mandamos un mail para confirmar la cuenta"*.
+10. Abrí el mail (mirá en spam) → tocá el botón → vuelve a la app con la cuenta lista.
+11. En Brevo, en la sección de mails **transaccionales** (**Transactional → Logs** o
+    **Statistics**), ves si el mail salió, rebotó o lo bloquearon.
+
+**Si falla**, mirá **Supabase → Logs → Auth**: ahí aparece la respuesta del SMTP.
+
+| El log dice algo como… | Qué hacer |
+| --- | --- |
+| `535 … Authentication failed` | Username o Password mal. Copiá de nuevo el Login y generá una SMTP key nueva |
+| Remitente inválido / no verificado (`sender … not valid`) | El *Sender email* de Supabase no coincide con el remitente verificado en Brevo |
+| `SMTP account is not yet activated` | Brevo todavía no te habilitó el envío transaccional: completá el perfil y pedí la activación a soporte desde tu cuenta de Brevo (puede tardar 1–2 días hábiles) |
+| Timeout o no conecta | Probá el puerto `2525` |
+| Supabase dice `user confirmation requested` (200) pero no llega ni a spam | Supabase ya le pasó el mail a Brevo: el problema está entre Brevo y tu casilla. Mirá el estado en los logs de Brevo (abajo) |
+
+**Supabase dice 200 pero el mail no llega.** En Brevo abrí los logs de mails
+transaccionales (**Transactional → Email → Logs**, o **Statistics → Logs**) y buscá
+tu dirección:
+
+- **No aparece nada:** el mail no pasó por Brevo. Volvé a **SMTP Settings** en Supabase
+  y revisá que **Enable custom SMTP** haya quedado activado y guardado.
+- **Hard bounce / Blocked / Error:** abrí el detalle. Si el remitente es un `@gmail.com`
+  (o Hotmail, Yahoo), Gmail rechaza el mail porque llega desde servidores de Brevo y
+  no de Google (falla DMARC). Se arregla con un dominio propio autenticado en Brevo, o
+  mandando con tu Gmail directamente (paso 3.1.d).
+- **Blocked por blocklist:** después de un rebote Brevo bloquea esa dirección y no le
+  manda más. Sacala de la lista de contactos bloqueados de Transactional.
+- **Delivered:** llegó. En Gmail buscá `in:anywhere EscabiARG` (puede estar en
+  *Promociones*, *Actualizaciones* o *Spam*).
+
+
+### 3.1.d Sin dominio propio: mandar con tu Gmail
+
+Si no tenés dominio, la forma gratis más confiable es que Supabase mande los mails
+**desde tu propia cuenta de Gmail**: salen de los servidores de Google y no los
+rechazan. Límite: unos 500 mails por día, de sobra para un grupo de amigos.
+
+1. En <https://myaccount.google.com/security> activá la **Verificación en dos pasos**
+   (sin eso Google no deja crear contraseñas de aplicación).
+2. Entrá a <https://myaccount.google.com/apppasswords> → nombre `Supabase EscabiARG` →
+   **Crear** → copiá la contraseña de 16 letras (sin espacios). Se muestra una sola vez.
+3. Supabase → **Authentication → Emails → SMTP Settings** (reemplaza lo de Brevo):
+
+   | Campo | Valor |
+   | --- | --- |
+   | Sender email address | tu Gmail (el mismo de la cuenta) |
+   | Sender name | `EscabiARG` |
+   | Host | `smtp.gmail.com` |
+   | Port number | `587` (si no anda, `465`) |
+   | Username | tu Gmail completo |
+   | Password | la contraseña de aplicación del paso 2 (no tu contraseña de Google) |
+
+   **Save changes** y probá registrarte con un mail nuevo.
+4. Los mails salen con tu dirección como remitente. Si cambiás la contraseña de Google,
+   las contraseñas de aplicación se borran y hay que crear otra.
+
+### 3.1.c Mails propios con SendGrid (pago)
 
 > SendGrid ya **no tiene plan gratis** (lo retiró en mayo de 2025): las cuentas nuevas
 > tienen una prueba de 60 días con un tope de 100 mails por día, y después es pago.
@@ -181,7 +306,8 @@ Hacelo desde el celular, que es donde se va a usar:
 3. En otro celular (o una ventana de incógnito) creá **otra cuenta**.
 4. Con la primera: **Amigos** → copiá tu código. Con la segunda: agregalo por código.
 5. Con la primera: **Crear viaje** (o **Previa y salida**) invitando a la segunda.
-6. En el viaje → **Reglas → Usar carta sugerida**.
+6. En el viaje → **Reglas → Usar carta sugerida** (trae también los que restan: agua,
+   gaseosa sola, té de boldo y Alikal).
 7. **Cargar trago** → elegí uno → **Abrir cámara** → el navegador te pide permiso
    para la cámara: **Permitir** → sacá la foto → cargalo.
 8. Con la segunda cuenta entrá al viaje → **Pendientes** → mirá la foto → **Vale**.
@@ -207,12 +333,60 @@ Si todo eso anduvo, ya está online. 🍻
 | "El login todavía no está configurado" / solo aparece la demo | El build se hizo sin las variables | Cargá las variables y **Clear cache and deploy site** |
 | "Invalid API key" al entrar | Clave mal copiada o de otro proyecto | Copiá de nuevo la publishable key del paso 4 |
 | Se registran pero no les llega el mail | SMTP por defecto de Supabase | Desactivá **Confirm email** o configurá SMTP propio |
+| Error **500** al crear la cuenta / "No pudimos mandarte el mail de confirmación" | Supabase no pudo mandar el mail (SMTP mal configurado) | Ver [Error 500 al registrarse](#error-500-al-registrarse) |
+| "No pudimos crear tu cuenta por un error en la base de datos" | Falló el trigger que crea el perfil | Ver [Error 500 al registrarse](#error-500-al-registrarse) |
 | "El modo invitado no está habilitado todavía" | Falta el interruptor | Paso 3.2 |
 | "No tenés permiso para hacer eso" o errores de tablas que no existen | Falta correr el SQL | Paso 2 (o la migración que falte) |
 | No se suben las fotos | Falta el bucket `trip-photos` | Corré la migración 2 (o el setup completo) |
 | La cámara no abre | Permiso denegado | En el navegador: permisos del sitio → Cámara → Permitir. En iPhone: Ajustes → Safari → Cámara |
 | Después de confirmar el mail te manda a `localhost` | Site URL sin configurar | Paso 6 |
 | Las cuentas regresivas se ven corridas | Hora del celular muy desfasada | La app se sincroniza con el servidor; reiniciá la app |
+| Lo que hacen los demás tarda unos segundos en aparecer (no es instantáneo) | Falta la migración de tiempo real, o Realtime está caído | Corré `20261110000000_tiempo_real.sql` (paso 2). En **Realtime → Inspector** podés ver si llegan mensajes a `trip:…` |
+
+### Error 500 al registrarse
+
+Si en la consola del navegador ves
+`POST https://xxxx.supabase.co/auth/v1/signup … 500`, el problema está en Supabase,
+no en Netlify. Para ver la causa exacta:
+
+- **DevTools → Network** → tocá el pedido `signup` → pestaña **Response**, o
+- **Supabase → Logs → Auth** (filtrá por `signup` o por `error`): ahí aparece el
+  error completo, incluido lo que respondió el servidor de mails.
+
+Según el mensaje:
+
+**`Error sending confirmation email`** (el caso más común): Supabase intentó mandar el
+mail y tu SMTP lo rechazó. La cuenta **no** se crea, por eso falla siempre.
+
+1. Revisá **Authentication → Emails → SMTP Settings** campo por campo:
+
+   | Proveedor | Host | Puerto | Username | Password |
+   | --- | --- | --- | --- | --- |
+   | SendGrid | `smtp.sendgrid.net` | `587` | `apikey` (literal) | la API key (`SG.…`) |
+   | Brevo | `smtp-relay.brevo.com` | `587` | el **Login** de *SMTP & API → SMTP* (ej. `xxxx@smtp-brevo.com`) | la **SMTP key** (no la API key `xkeysib-…` ni tu contraseña) |
+   | Resend | `smtp.resend.com` | `465` | `resend` | la API key (`re_…`) |
+
+2. El **Sender email** tiene que ser exactamente un remitente/dominio **verificado** en
+   el proveedor. Si no, el SMTP responde algo como
+   `550 The from address does not match a verified Sender Identity` y Supabase lo
+   muestra como 500.
+3. Si al pegar la password quedó un espacio al principio o al final, borrala y pegala
+   de nuevo.
+4. Para confirmar que el problema es el SMTP: desactivá un momento **Confirm email**
+   (Sign In / Providers → Email) y probá registrarte. Si así anda, el resto de la app
+   está bien y solo falta arreglar el mail.
+
+**`Database error saving new user`**: falló el trigger que crea el perfil
+(`handle_new_user`).
+
+1. **Logs → Postgres**: buscá el error de la misma hora (ahí dice qué falló).
+2. Revisá en **Table Editor** que exista la tabla `profiles`. Si no está, corré el
+   paso 2 (`setup_completo.sql`).
+3. Si corriste las migraciones a mano, fijate de haberlas corrido **todas y en orden**.
+
+**`Email address "…" cannot be used as it is not authorized`**: estás usando el SMTP
+por defecto de Supabase, que solo manda mails al equipo de tu organización. Configurá un
+SMTP propio o desactivá **Confirm email** (paso 3.1).
 
 ## Desarrollo en tu compu
 

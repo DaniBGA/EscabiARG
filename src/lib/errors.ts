@@ -8,6 +8,10 @@ const MESSAGES: Record<string, string> = {
   TRIP_NAME_REQUIRED: 'Ponele un nombre al viaje.',
   NOT_TRIP_MEMBER: 'No sos parte de este viaje.',
   DRINK_NOT_FOUND: 'Ese trago ya no está en la carta.',
+  DRINK_IS_PENALTY: 'Ese resta puntos: no se carga, te tienen que quemar 🔥',
+  DRINK_NOT_PENALTY: 'Solo se puede quemar con algo que resta puntos.',
+  BURN_SELF: 'No te podés quemar a vos mismo 😅',
+  BURN_RECENT: 'A esa persona ya la quemaron por eso hace un ratito.',
   PHOTO_REQUIRED: 'La foto no es válida: sacá una nueva en el momento.',
   PHOTO_INVALID: 'No pudimos leer la foto. Probá de nuevo.',
   INVALID_DIFFICULTY: 'Elegí una dificultad válida.',
@@ -69,6 +73,17 @@ const MESSAGES: Record<string, string> = {
 }
 
 const AUTH_MESSAGES: [RegExp, string][] = [
+  [
+    /error sending .*email/i,
+    'No pudimos mandarte el mail de confirmación. Probá de nuevo en un rato; si sigue pasando, hay que revisar la configuración de mails (SMTP) en Supabase.',
+  ],
+  [
+    /database error saving new user/i,
+    'No pudimos crear tu cuenta por un error en la base de datos. Probá de nuevo en un rato.',
+  ],
+  [/email address .*not authorized/i, 'Todavía no podemos mandar mails a esa dirección (falta configurar el servidor de mails).'],
+  [/email address .*invalid|unable to validate email/i, 'Ese email no es válido. Revisá que esté bien escrito.'],
+  [/signups not allowed|signup.*disabled/i, 'Por ahora no se pueden crear cuentas nuevas.'],
   [/invalid login credentials/i, 'Email o contraseña incorrectos.'],
   [/already registered|already been registered/i, 'Ya existe una cuenta con ese email.'],
   [/email not confirmed/i, 'Confirmá tu email antes de entrar (revisá tu casilla).'],
@@ -94,5 +109,7 @@ export function friendlyError(err: unknown): string {
   for (const [pattern, text] of AUTH_MESSAGES) {
     if (pattern.test(message)) return text
   }
+  // El detalle queda en la consola del navegador para poder diagnosticarlo
+  console.error('[EscabiARG] error sin traducir:', err)
   return 'Algo salió mal. Probá de nuevo.'
 }

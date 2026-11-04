@@ -76,6 +76,10 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
             <>
               <strong>{name(e.user_id)}</strong> dice que en el casino: {e.detail}
             </>
+          ) : e.kind === 'burn' ? (
+            <>
+              🔥 <strong>{name(e.actor_id)}</strong> quemó a <strong>{name(e.user_id)}</strong> tomando {e.emoji} {e.title}
+            </>
           ) : e.kind === 'duel' ? (
             <>
               ⚔️ <strong>{name(e.user_id)}</strong> le ganó un duelo a <strong>{name(e.actor_id)}</strong>: {e.detail}

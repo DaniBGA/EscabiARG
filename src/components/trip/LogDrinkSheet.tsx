@@ -20,7 +20,9 @@ type Props = {
 }
 
 export default function LogDrinkSheet(props: Props) {
-  const { open, onClose, tripId, userId, drinks, doubleActive, isOwner, onDone, onGoToDrinks } = props
+  const { open, onClose, tripId, userId, doubleActive, isOwner, onDone, onGoToDrinks } = props
+  // Los que restan no se cargan: te queman
+  const drinks = props.drinks.filter((d) => d.points > 0)
   const api = useApi()
   const [drinkId, setDrinkId] = useState<string | null>(null)
   const [photos, setPhotos] = useState<Blob[]>([])
