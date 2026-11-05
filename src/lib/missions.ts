@@ -42,3 +42,33 @@ export const MISSIONS: Record<Difficulty, string[]> = {
     'Hacé un TikTok bailando con al menos 3 del grupo.',
   ],
 }
+
+/** Misiones de la Hora boliche (las mismas que carga 20261112000000_viajes_y_boliche.sql) */
+export const BOLICHE_MISSIONS: Record<Difficulty, string[]> = {
+  easy: [
+    'Sacate una selfie con todo el grupo en la pista.',
+    'Pedile al DJ un tema de cumbia.',
+    'Bailá un tema entero sin parar (y sin mirar el celu).',
+    'Aprendete el nombre de quien atiende la barra y saludalo/a por su nombre.',
+    'Conseguí que alguien del grupo te invite un trago.',
+    'Hacé un brindis en la barra con alguien que no conocías.',
+    'Cantá el estribillo de un tema a los gritos con el grupo.',
+  ],
+  medium: [
+    'Armá un trencito de al menos 5 personas.',
+    'Hacé la coreo completa de un tema que elija el grupo.',
+    'Conseguí una foto con alguien que tenga algo que brille.',
+    'Chamuyá a alguien en la barra y conseguí su Instagram.',
+    'Bailá en el medio de una ronda que arme el grupo.',
+    'Conseguí que el DJ te salude o te haga un gesto.',
+    'Enseñale un paso de baile a alguien que no conocés.',
+  ],
+  extreme: [
+    'Conseguí que el DJ pase un tema que pidió el grupo.',
+    'Invitá a alguien que no conocés a bailar un tema (y que acepte).',
+    'Hacé que una ronda de desconocidos cante un estribillo con vos.',
+    'Volvé de la barra con un trago que te invitó alguien que no es del grupo.',
+    'Conseguí que te presten un gorro o unos anteojos y bailá un tema con eso puesto.',
+    'Sacate una foto con alguien del staff del boliche (pidiéndolo bien).',
+  ],
+}

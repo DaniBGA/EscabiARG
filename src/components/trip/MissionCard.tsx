@@ -14,12 +14,14 @@ type Props = {
   mission: DailyMission | null
   /** Están votando si tu misión es mala */
   underVote: boolean
+  /** Hora boliche activada */
+  boliche?: boolean
   onChange: (message?: string) => void
 }
 
-export default function MissionCard({ tripId, userId, rules, mission, underVote, onChange }: Props) {
+export default function MissionCard({ tripId, userId, rules, mission, underVote, boliche = false, onChange }: Props) {
   const api = useApi()
-  const [busy, setBusy] = useState<Difficulty | 'done' | null>(null)
+  const [busy, setBusy] = useState<Difficulty | 'done' | 'swap' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
   const [photos, setPhotos] = useState<Blob[]>([])
@@ -36,6 +38,23 @@ export default function MissionCard({ tripId, userId, rules, mission, underVote,
       setBusy(null)
     }
   }
+
+  const swap = async () => {
+    setBusy('swap')
+    setError(null)
+    try {
+      await api.swapBolicheMission(tripId)
+      onChange('🪩 ¡Misión de boliche!')
+    } catch (err) {
+      setError(friendlyError(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const canSwap = Boolean(
+    boliche && mission && !mission.completed_at && mission.theme !== 'boliche' && !mission.group_assigned && !underVote,
+  )
 
   const complete = async () => {
     if (!mission) return
@@ -60,7 +79,11 @@ export default function MissionCard({ tripId, userId, rules, mission, underVote,
 
       {!mission ? (
         <>
-          <p className="muted">Elegí la dificultad y te toca una misión al azar. Una por jornada, sin cambiar.</p>
+          <p className="muted">
+            {boliche
+              ? '🪩 Es Hora boliche: te toca una misión de boliche. Elegí la dificultad.'
+              : 'Elegí la dificultad y te toca una misión al azar. Una por jornada, sin cambiar.'}
+          </p>
           <div className="difficulty-row">
             {DIFFICULTIES.map((d) => (
               <button
@@ -84,14 +107,22 @@ export default function MissionCard({ tripId, userId, rules, mission, underVote,
           </span>
           <p className="mission-text">{mission.mission}</p>
           {mission.group_assigned && <span className="badge-group">elegida por el grupo</span>}
+          {mission.theme === 'boliche' && <span className="badge-group badge-boliche">🪩 de boliche</span>}
           {mission.completed_at ? (
             <p className="mission-done">✅ ¡Cumplida! Mañana te toca otra.</p>
           ) : underVote ? (
             <p className="notice">🗳️ Están votando si tu misión es mala. Esperá a que termine para cumplirla.</p>
           ) : (
-            <button type="button" className="btn btn--primary btn--block" onClick={() => setCompleting(true)}>
-              ¡La cumplí!
-            </button>
+            <>
+              <button type="button" className="btn btn--primary btn--block" onClick={() => setCompleting(true)}>
+                ¡La cumplí!
+              </button>
+              {canSwap && (
+                <button type="button" className="btn btn--ghost btn--block btn--boliche" disabled={busy !== null} onClick={swap}>
+                  {busy === 'swap' ? 'Cambiando…' : '🪩 Cambiarla por una de boliche'}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

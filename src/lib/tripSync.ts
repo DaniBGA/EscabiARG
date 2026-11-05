@@ -45,6 +45,7 @@ const TABLES: Record<string, TableSpec> = {
   casino_players: { key: 'casinoPlayers', id: pair('session_id', 'user_id'), newest: 'last' },
   duels: { key: 'duels', id: byId, newest: 'first' },
   duel_results: { key: 'duelResults', id: pair('duel_id', 'user_id'), newest: 'last' },
+  duel_votes: { key: 'duelVotes', id: pair('duel_id', 'voter_id'), newest: 'last' },
 }
 
 /** Cambios que no se pueden aplicar sueltos: hay que volver a pedir el viaje */
@@ -121,6 +122,7 @@ export function nextDeadline(detail: TripDetail): number | null {
   for (const d of detail.duels) {
     if (d.status === 'invited') times.push(Date.parse(d.created_at) + INVITE_MS)
     else if (d.status === 'live' && d.ends_at) times.push(Date.parse(d.ends_at))
+    else if (d.status === 'voting' && d.voting_until) times.push(Date.parse(d.voting_until))
   }
   const valid = times.filter((t) => Number.isFinite(t))
   return valid.length > 0 ? Math.min(...valid) : null

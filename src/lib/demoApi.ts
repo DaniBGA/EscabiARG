@@ -25,6 +25,8 @@ import type {
   TripDetail,
   TripEvent,
   TripRules,
+  DuelVote,
+  Theme,
 } from './api'
 import { clearDemoPhotos, demoPhotoUrls, saveDemoPhoto, seedPhotoPath } from './demoPhotos'
 import {
@@ -43,8 +45,8 @@ import {
   outingState,
   tripDay,
 } from './game'
-import { MISSIONS } from './missions'
-import { SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
+import { BOLICHE_MISSIONS, MISSIONS } from './missions'
+import { BOLICHE_FORFEITS, BOLICHE_INFRACTIONS, SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
 
 /**
  * Modo demo: datos de ejemplo guardados solo en este navegador (localStorage + IndexedDB).
@@ -54,7 +56,7 @@ import { SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
 
 export const DEMO_USER_ID = 'demo-me'
 const STORAGE_KEY = 'escabiarg:demo-data'
-const VERSION = 7
+const VERSION = 8
 
 type StoredTrip = Omit<Trip, 'members'> &
   TripRules & {
@@ -89,6 +91,7 @@ type DemoData = {
   casinoPlayers: (CasinoPlayer & { trip_id: string })[]
   duels: Duel[]
   duelResults: (DuelResult & { trip_id: string })[]
+  duelVotes: (DuelVote & { trip_id: string })[]
 }
 
 const PEOPLE: Profile[] = [
@@ -122,11 +125,24 @@ const DEFAULT_RULES: TripRules = {
 }
 
 function seedLists(tripId: string) {
+  const theme = (t: Theme) => ({ trip_id: tripId, theme: t, archived: false })
   return {
-    infractions: SUGGESTED_INFRACTIONS.map((i) => ({ id: newId(), trip_id: tripId, ...i, archived: false })),
-    forfeits: SUGGESTED_FORFEITS.map((text) => ({ id: newId(), trip_id: tripId, text, archived: false })),
+    infractions: [
+      ...SUGGESTED_INFRACTIONS.map((i) => ({ id: newId(), ...i, ...theme('normal') })),
+      ...BOLICHE_INFRACTIONS.map((i) => ({ id: newId(), ...i, ...theme('boliche') })),
+    ],
+    forfeits: [
+      ...SUGGESTED_FORFEITS.map((text) => ({ id: newId(), text, ...theme('normal') })),
+      ...BOLICHE_FORFEITS.map((text) => ({ id: newId(), text, ...theme('boliche') })),
+    ],
   }
 }
+
+/** 'boliche' mientras está activada la Hora boliche */
+const themeOf = (trip: { boliche_at?: string | null } | undefined): Theme => (trip?.boliche_at ? 'boliche' : 'normal')
+
+/** Votación del duelo de baile (igual que la base) */
+const DANCE_VOTE_MS = 90_000
 
 // Tiempos de las votaciones (iguales a la base)
 const BAD_VOTE_MS = 10 * 60_000
@@ -276,7 +292,8 @@ function seed(): DemoData {
     version: VERSION,
     me: { id: DEMO_USER_ID, display_name: 'Vos', friend_code: 'DEMO42' },
     people: PEOPLE,
-    friendIds: ['demo-juli', 'demo-tincho'],
+    // El Colo es amigo pero no está en el viaje: sirve para probar "Sumar gente"
+    friendIds: ['demo-juli', 'demo-tincho', 'demo-colo'],
     trips: [
       {
         id: T1,
@@ -340,6 +357,7 @@ function seed(): DemoData {
     casinoPlayers: [],
     duels: [],
     duelResults: [],
+    duelVotes: [],
   }
 }
 
@@ -493,7 +511,10 @@ function resolveEvent(data: DemoData, e: DemoData['events'][number]) {
 }
 
 function assignForfeit(data: DemoData, tripId: string, userId: string, source: PlayerForfeit['source'], reason: string) {
-  const pool = data.forfeits.filter((f) => f.trip_id === tripId && !f.archived)
+  const all = data.forfeits.filter((f) => f.trip_id === tripId && !f.archived)
+  const wanted = themeOf(data.trips.find((t) => t.id === tripId))
+  const themed = all.filter((f) => (f.theme ?? 'normal') === wanted)
+  const pool = themed.length > 0 ? themed : all
   const pick = pool[Math.floor(Math.random() * pool.length)]
   data.playerForfeits.unshift({
     id: newId(),
@@ -556,9 +577,61 @@ function resolveChef(data: DemoData, spin: ChefSpin) {
 
 const fmtSeconds = (ms: number) => `${(ms / 1000).toFixed(1).replace('.', ',')} s`
 
+function resolveDance(data: DemoData, d: Duel, now: number) {
+  const res = (id: string) => data.duelResults.find((r) => r.duel_id === d.id && r.user_id === id) as DuelResult
+  const a = res(d.challenger_id)
+  const b = res(d.opponent_id)
+  let winner: string | null = null
+  let detail = ''
+  if (d.status === 'live') {
+    if (a.gave_up || b.gave_up) {
+      winner = a.gave_up && !b.gave_up ? b.user_id : b.gave_up && !a.gave_up ? a.user_id : null
+      detail = 'El otro se bajó de la pista'
+    } else if (!d.ends_at || now < Date.parse(d.ends_at)) {
+      return
+    } else {
+      d.status = 'voting'
+      d.voting_until = iso(Date.parse(d.ends_at) + DANCE_VOTE_MS)
+    }
+  }
+  if (d.status === 'voting') {
+    const trip = data.trips.find((t) => t.id === d.trip_id)
+    const eligible = (trip?.members ?? []).filter((m) => m.user_id !== d.challenger_id && m.user_id !== d.opponent_id).length
+    const votes = data.duelVotes.filter((v) => v.duel_id === d.id)
+    const forA = votes.filter((v) => v.pick === d.challenger_id).length
+    const forB = votes.filter((v) => v.pick === d.opponent_id).length
+    if (eligible > 0 && forA + forB < eligible && now < Date.parse(d.voting_until ?? '')) return
+    winner = forA > forB ? d.challenger_id : forB > forA ? d.opponent_id : null
+    detail = eligible === 0 ? 'No había nadie para votar' : forA + forB === 0 ? 'Nadie votó' : `${Math.max(forA, forB)} a ${Math.min(forA, forB)} en la votación`
+  }
+  if (winner) {
+    const trip = data.trips.find((t) => t.id === d.trip_id)
+    const e = addEvent(data, {
+      trip_id: d.trip_id,
+      user_id: winner,
+      actor_id: winner === d.challenger_id ? d.opponent_id : d.challenger_id,
+      kind: 'duel',
+      points: trip?.duel_points ?? 15,
+      day: d.day,
+      title: 'Ganó el duelo de baile',
+      emoji: '🕺',
+      detail,
+      status: 'approved',
+      ref_id: d.id,
+    })
+    d.event_id = e.id
+  }
+  d.winner_id = winner
+  d.status = 'done'
+}
+
 function resolveDuel(data: DemoData, d: Duel, now = Date.now()) {
   if (d.status === 'invited') {
     if (now >= Date.parse(d.created_at) + DUEL_INVITE_MS) d.status = 'cancelled'
+    return
+  }
+  if (d.kind === 'baile') {
+    if (d.status === 'live' || d.status === 'voting') resolveDance(data, d, now)
     return
   }
   if (d.status !== 'live' || !d.starts_at || !d.ends_at) return
@@ -820,13 +893,23 @@ function botsAct(data: DemoData, now = Date.now()) {
       if (d.trip_id !== trip.id) continue
       if (d.status === 'invited' && bots.includes(d.opponent_id) && now - Date.parse(d.created_at) >= 3000) {
         const day = data.duels.filter(
-          (x) => x.day === d.day && (x.status === 'live' || x.status === 'done') &&
+          (x) => x.day === d.day && ['live', 'voting', 'done'].includes(x.status) &&
             (x.challenger_id === d.opponent_id || x.opponent_id === d.opponent_id),
         ).length
         if (day >= DUELS_PER_DAY) d.status = 'declined'
         else startDuel(data, d, now)
       }
-      if (d.status === 'live' && d.starts_at && d.ends_at) {
+      // Duelo de baile: los de ejemplo que no bailan votan a los pocos segundos
+      if (d.kind === 'baile' && d.status === 'voting' && d.ends_at) {
+        bots.forEach((bot, i) => {
+          if (bot === d.challenger_id || bot === d.opponent_id) return
+          if (data.duelVotes.some((v) => v.duel_id === d.id && v.voter_id === bot)) return
+          if (now - Date.parse(d.ends_at!) < 2500 + i * 2000) return
+          const pick = botPace(d.id, bot) < 0.5 ? d.challenger_id : d.opponent_id
+          data.duelVotes.push({ duel_id: d.id, trip_id: d.trip_id, voter_id: bot, pick })
+        })
+      }
+      if (d.status === 'live' && d.kind !== 'baile' && d.starts_at && d.ends_at) {
         const start = Date.parse(d.starts_at)
         const end = Date.parse(d.ends_at)
         for (const id of [d.challenger_id, d.opponent_id]) {
@@ -887,6 +970,7 @@ function buildDetail(data: DemoData, trip: StoredTrip): TripDetail {
     casinoPlayers: data.casinoPlayers.filter((x) => x.trip_id === id),
     duels: data.duels.filter((x) => x.trip_id === id).sort((a, b) => b.created_at.localeCompare(a.created_at)),
     duelResults: data.duelResults.filter((x) => x.trip_id === id),
+    duelVotes: data.duelVotes.filter((x) => x.trip_id === id),
     serverTime: new Date().toISOString(),
   }
 }
@@ -975,6 +1059,50 @@ export const demoApi: Api = {
     data.forfeits.push(...lists.forfeits)
     save(data)
     return id
+  },
+
+  async deleteTrip(tripId) {
+    await wait()
+    const data = load()
+    requireOwner(data, tripId)
+    const keep = <T extends { trip_id?: string }>(rows: T[]) => rows.filter((r) => r.trip_id !== tripId)
+    save({
+      ...data,
+      trips: data.trips.filter((t) => t.id !== tripId),
+      drinks: keep(data.drinks),
+      events: keep(data.events),
+      missions: keep(data.missions),
+      cards: keep(data.cards),
+      eventVotes: keep(data.eventVotes),
+      challenges: keep(data.challenges),
+      badVotes: keep(data.badVotes),
+      options: keep(data.options),
+      optionVotes: keep(data.optionVotes),
+      infractions: keep(data.infractions),
+      forfeits: keep(data.forfeits),
+      playerForfeits: keep(data.playerForfeits),
+      chefSpins: keep(data.chefSpins),
+      chefPlayers: keep(data.chefPlayers),
+      chefVotes: keep(data.chefVotes),
+      casinoSessions: keep(data.casinoSessions),
+      casinoPlayers: keep(data.casinoPlayers),
+      duels: keep(data.duels),
+      duelResults: keep(data.duelResults),
+    })
+  },
+
+  async addTripMembers(tripId, memberIds) {
+    await wait()
+    const data = load()
+    const trip = requireOwner(data, tripId)
+    const fresh = [...new Set(memberIds)].filter(
+      (id) => id !== data.me.id && !trip.members.some((m) => m.user_id === id),
+    )
+    if (fresh.length === 0) throw new Error('NO_NEW_MEMBERS')
+    if (fresh.some((id) => !data.friendIds.includes(id))) throw new Error('MEMBER_NOT_FRIEND')
+    trip.members.push(...fresh.map((user_id) => ({ user_id, role: 'member' as const })))
+    save(data)
+    return fresh.length
   },
 
   // ---------- Juego del viaje ----------
@@ -1073,9 +1201,11 @@ export const demoApi: Api = {
     if (data.missions.some((m) => m.trip_id === tripId && m.user_id === data.me.id && m.day === today)) {
       throw new Error('MISSION_ALREADY_CHOSEN')
     }
-    const pool = MISSIONS[difficulty]
+    const theme = themeOf(trip)
+    const pool = (theme === 'boliche' ? BOLICHE_MISSIONS : MISSIONS)[difficulty]
     if (!pool) throw new Error('INVALID_DIFFICULTY')
     data.missions.push({
+      theme,
       id: newId(),
       trip_id: tripId,
       user_id: data.me.id,
@@ -1365,7 +1495,7 @@ export const demoApi: Api = {
     if (!name) throw new Error('Datos inválidos')
     const existing = item.id && data.infractions.find((x) => x.id === item.id && x.trip_id === tripId)
     if (existing) Object.assign(existing, { name, emoji: item.emoji })
-    else data.infractions.push({ id: newId(), trip_id: tripId, name, emoji: item.emoji, archived: false })
+    else data.infractions.push({ id: newId(), trip_id: tripId, name, emoji: item.emoji, theme: item.theme ?? 'normal', archived: false })
     save(data)
   },
 
@@ -1387,7 +1517,7 @@ export const demoApi: Api = {
     if (text.length < 3) throw new Error('Datos inválidos')
     const existing = item.id && data.forfeits.find((x) => x.id === item.id && x.trip_id === tripId)
     if (existing) existing.text = text
-    else data.forfeits.push({ id: newId(), trip_id: tripId, text, archived: false })
+    else data.forfeits.push({ id: newId(), trip_id: tripId, text, theme: item.theme ?? 'normal', archived: false })
     save(data)
   },
 
@@ -1623,15 +1753,17 @@ export const demoApi: Api = {
     const trip = requireOpen(data, tripId)
     botsAct(data)
     if (opponentId === data.me.id || !trip.members.some((m) => m.user_id === opponentId)) throw new Error('INVALID_OPPONENT')
-    if (kind === 'fondo' ? seconds < 10 || seconds > 120 : seconds < 30 || seconds > 300) throw new Error('INVALID_SECONDS')
+    if (kind === 'baile' && themeOf(trip) !== 'boliche') throw new Error('BOLICHE_ONLY')
+    const [min, max] = kind === 'fondo' ? [10, 120] : kind === 'baile' ? [30, 180] : [30, 300]
+    if (seconds < min || seconds > max) throw new Error('INVALID_SECONDS')
     const involves = (d: Duel, id: string) => d.challenger_id === id || d.opponent_id === id
-    if (data.duels.some((d) => d.trip_id === tripId && (d.status === 'invited' || d.status === 'live') &&
+    if (data.duels.some((d) => d.trip_id === tripId && (d.status === 'invited' || d.status === 'live' || d.status === 'voting') &&
         (involves(d, data.me.id) || involves(d, opponentId)))) {
       throw new Error('DUEL_BUSY')
     }
     const today = todayOf(trip)
     const played = (id: string) =>
-      data.duels.filter((d) => d.trip_id === tripId && d.day === today && (d.status === 'live' || d.status === 'done') && involves(d, id)).length
+      data.duels.filter((d) => d.trip_id === tripId && d.day === today && ['live', 'voting', 'done'].includes(d.status) && involves(d, id)).length
     if (played(data.me.id) >= DUELS_PER_DAY) throw new Error('DUEL_LIMIT_ME')
     if (played(opponentId) >= DUELS_PER_DAY) throw new Error('DUEL_LIMIT_OPPONENT')
     data.duels.unshift({
@@ -1689,6 +1821,48 @@ export const demoApi: Api = {
       } else throw new Error('INVALID_KIND')
     }
     resolveDuel(data, d)
+    save(data)
+  },
+
+  async voteDuel(duelId, pickId) {
+    await wait()
+    const data = load()
+    const d = data.duels.find((x) => x.id === duelId)
+    if (!d) throw new Error('DUEL_NOT_FOUND')
+    tripFor(data, d.trip_id)
+    resolveDuel(data, d)
+    if (d.kind !== 'baile') throw new Error('INVALID_KIND')
+    if (d.challenger_id === data.me.id || d.opponent_id === data.me.id) throw new Error('CANNOT_VOTE_OWN')
+    if (d.status === 'live') throw new Error('DUEL_STILL_DANCING')
+    if (d.status !== 'voting') throw new Error('DUEL_CLOSED')
+    if (pickId !== d.challenger_id && pickId !== d.opponent_id) throw new Error('INVALID_OPPONENT')
+    data.duelVotes = data.duelVotes.filter((v) => !(v.duel_id === d.id && v.voter_id === data.me.id))
+    data.duelVotes.push({ duel_id: d.id, trip_id: d.trip_id, voter_id: data.me.id, pick: pickId })
+    resolveDuel(data, d)
+    save(data)
+  },
+
+  async setBoliche(tripId, on) {
+    await wait()
+    const data = load()
+    const trip = requireOwner(data, tripId)
+    if (on) requireOpen(data, tripId)
+    trip.boliche_at = on ? trip.boliche_at ?? new Date().toISOString() : null
+    save(data)
+  },
+
+  async swapBolicheMission(tripId) {
+    await wait()
+    const data = load()
+    const trip = tripFor(data, tripId)
+    if (themeOf(trip) !== 'boliche') throw new Error('BOLICHE_OFF')
+    const m = data.missions.find((x) => x.trip_id === tripId && x.user_id === data.me.id && x.day === todayOf(trip))
+    if (!m) throw new Error('MISSION_NOT_FOUND')
+    if (m.completed_at) throw new Error('MISSION_ALREADY_DONE')
+    if (m.theme === 'boliche' || m.group_assigned) throw new Error('MISSION_NOT_SWAPPABLE')
+    const pool = BOLICHE_MISSIONS[m.difficulty]
+    m.mission = pool[Math.floor(Math.random() * pool.length)]
+    m.theme = 'boliche'
     save(data)
   },
 

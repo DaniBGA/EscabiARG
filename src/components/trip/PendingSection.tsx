@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { TripDetail, TripEvent } from '../../lib/api'
 import { useApi } from '../../lib/authContext'
 import { friendlyError } from '../../lib/errors'
-import { eventTally, formatDuelTime, formatPoints, formatTime, myPendingItems } from '../../lib/game'
+import { danceVoteUntil, eventTally, formatDuelTime, formatPoints, formatTime, myPendingItems } from '../../lib/game'
 import Sheet from '../Sheet'
 import ChallengeCard from './ChallengeCard'
 import QuiebreGuy from './QuiebreGuy'
@@ -238,7 +238,11 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
               <div className="quick-body">
                 <p className="quick-title">
                   <strong>{who(item.duel.challenger_id)}</strong> te retó a un duelo de{' '}
-                  {item.duel.kind === 'fondo' ? `fondo blanco (máx. ${formatDuelTime(item.duel.seconds)})` : `shots (${formatDuelTime(item.duel.seconds)})`}
+                  {item.duel.kind === 'fondo'
+                    ? `fondo blanco (máx. ${formatDuelTime(item.duel.seconds)})`
+                    : item.duel.kind === 'baile'
+                      ? `baile 🕺 (${formatDuelTime(item.duel.seconds)}, después vota el grupo)`
+                      : `shots (${formatDuelTime(item.duel.seconds)})`}
                 </p>
                 <p className="muted small">Podés decir que no sin problema.</p>
                 <div className="vote-row">
@@ -246,6 +250,27 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
                     onClick={() => act(() => api.respondDuel(item.duel.id, true), '⚔️ ¡Duelo aceptado! Preparate')}>Aceptar</button>
                   <button type="button" className="btn btn--ghost" disabled={busy}
                     onClick={() => act(() => api.respondDuel(item.duel.id, false), 'Duelo rechazado')}>No, gracias</button>
+                </div>
+              </div>
+            </article>
+          ) : item.type === 'duelVote' ? (
+            <article key={item.duel.id} className="quick quick--duel quick--dance">
+              <span className="quick-icon" aria-hidden="true">🕺</span>
+              <div className="quick-body">
+                <p className="quick-title">
+                  Duelo de baile: <strong>{who(item.duel.challenger_id)}</strong> vs <strong>{who(item.duel.opponent_id)}</strong>.
+                  ¿Quién bailó mejor?
+                </p>
+                <p className="muted small">
+                  Quedan {Math.max(0, Math.ceil((danceVoteUntil(item.duel) - now) / 1000))} s para votar. Gana el que tenga más votos.
+                </p>
+                <div className="vote-row">
+                  {[item.duel.challenger_id, item.duel.opponent_id].map((id) => (
+                    <button key={id} type="button" className="btn btn--primary" disabled={busy}
+                      onClick={() => act(() => api.voteDuel(item.duel.id, id), `🕺 Votaste a ${who(id)}`)}>
+                      {who(id)}
+                    </button>
+                  ))}
                 </div>
               </div>
             </article>

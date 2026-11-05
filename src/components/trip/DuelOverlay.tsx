@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Duel, TripDetail } from '../../lib/api'
 import { useApi } from '../../lib/authContext'
 import { friendlyError } from '../../lib/errors'
-import { DUEL_MAX_SHOTS } from '../../lib/game'
+import { DUEL_MAX_SHOTS, danceVoteUntil } from '../../lib/game'
 
 type Props = {
   duel: Duel
@@ -65,6 +65,13 @@ export default function DuelOverlay({ duel: d, detail, me, clockOffset, onChange
   const iGaveUp = Boolean(mine?.gave_up)
   const done = d.status === 'done'
   const event = detail.events.find((e) => e.id === d.event_id)
+  const dance = d.kind === 'baile'
+  // Baile: terminado el tiempo vota el resto del grupo
+  const voting = dance && !done && (d.status === 'voting' || now >= end)
+  const jury = members.filter((m) => m.user_id !== d.challenger_id && m.user_id !== d.opponent_id).length
+  const duelVotes = (detail.duelVotes ?? []).filter((v) => v.duel_id === d.id)
+  const votes = duelVotes.length
+  const votesFor = (id: string) => duelVotes.filter((v) => v.pick === id).length
 
   const act = async (action: 'finish' | 'shot' | 'give_up') => {
     setError(null)
@@ -96,17 +103,28 @@ export default function DuelOverlay({ duel: d, detail, me, clockOffset, onChange
     <dialog ref={ref} className="duel" aria-label="Duelo" onCancel={(e) => { e.preventDefault(); if (done) onClose() }}>
       <div className="duel-body">
         <p className="duel-title">
-          {d.kind === 'fondo' ? '🍺 Fondo blanco' : '🥃 Shots'} · vos vs {name(rival)}
+          {d.kind === 'fondo' ? '🍺 Fondo blanco' : dance ? '🕺 Duelo de baile' : '🥃 Shots'} · vos vs {name(rival)}
         </p>
 
         {done ? (
           <div className="duel-result">
             <span className="duel-big-emoji" aria-hidden="true">{d.winner_id === me ? '🏆' : d.winner_id ? '🥈' : '🤝'}</span>
             <p className="duel-headline">
-              {d.winner_id === me ? '¡Ganaste!' : d.winner_id ? `Ganó ${name(d.winner_id)}` : 'Nadie ganó'}
+              {d.winner_id === me ? '¡Ganaste!' : d.winner_id ? `Ganó ${name(d.winner_id)}` : dance ? '¡Empate!' : 'Nadie ganó'}
             </p>
             {event?.detail && <p className="duel-sub">{event.detail}</p>}
-            {d.winner_id && <p className="duel-sub small">El resultado lo valida el resto del grupo · +{detail.trip.duel_points} al ganador</p>}
+            {dance && !d.winner_id && (
+              <p className="duel-sub">
+                {votes === 0
+                  ? 'Nadie votó'
+                  : `${votesFor(d.challenger_id)} a ${votesFor(d.opponent_id)} en la votación`}
+              </p>
+            )}
+            {d.winner_id && (
+              <p className="duel-sub small">
+                {dance ? 'Lo votó el grupo' : 'El resultado lo valida el resto del grupo'} · +{detail.trip.duel_points} al ganador
+              </p>
+            )}
             <button type="button" className="btn btn--primary btn--block" onClick={onClose}>Cerrar</button>
           </div>
         ) : toStart > 0 ? (
@@ -114,6 +132,24 @@ export default function DuelOverlay({ duel: d, detail, me, clockOffset, onChange
             <span>{Math.ceil(toStart / 1000)}</span>
             <p>Preparate…</p>
           </div>
+        ) : voting ? (
+          <div className="duel-voting" aria-live="polite">
+            <span className="duel-big-emoji" aria-hidden="true">🗳️</span>
+            <p className="duel-headline">El grupo está votando…</p>
+            <p className="duel-sub">
+              {jury === 0 ? 'No hay nadie más para votar.' : `Votaron ${votes} de ${jury}`} · quedan{' '}
+              {Math.max(0, Math.ceil((danceVoteUntil(d) - now) / 1000))} s
+            </p>
+          </div>
+        ) : dance ? (
+          <>
+            <p className="duel-clock">{stopwatch(end - now)}</p>
+            <p className="duel-dance" aria-hidden="true">💃🕺</p>
+            <p className="duel-headline">¡A bailar!</p>
+            <p className="duel-sub">
+              {theirs?.gave_up ? `${name(rival)} se bajó` : 'Cuando termina el tiempo, el resto del grupo vota quién ganó.'}
+            </p>
+          </>
         ) : d.kind === 'fondo' ? (
           <>
             <p className="duel-clock">{stopwatch((myFinish ?? (mine?.finished_at ? Date.parse(mine.finished_at) : Math.min(now, end))) - start)}</p>
@@ -146,7 +182,7 @@ export default function DuelOverlay({ duel: d, detail, me, clockOffset, onChange
         )}
 
         {error && <p className="notice notice--error" role="alert">{error}</p>}
-        {!done && !iGaveUp && !(d.kind === 'fondo' && iFinished) && (
+        {!done && !voting && !iGaveUp && !(d.kind === 'fondo' && iFinished) && (
           <button type="button" className="btn btn--ghost duel-giveup" disabled={busy}
             onClick={() => window.confirm('¿Te bajás del duelo? Gana el otro, pero no perdés puntos.') && act('give_up')}>
             Me bajo

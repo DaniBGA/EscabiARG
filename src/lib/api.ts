@@ -25,8 +25,13 @@ export type Trip = {
   created_at: string
   kind: TripKind
   day_cutoff_hour?: number
+  /** Desde cuándo está activada la Hora boliche (null = apagada) */
+  boliche_at?: string | null
   members: TripMember[]
 }
+
+/** 'boliche' = misiones, infracciones y prendas de la Hora boliche */
+export type Theme = 'normal' | 'boliche'
 
 export type NewTrip = {
   name: string
@@ -91,8 +96,8 @@ export type TripEvent = {
 
 // ---------- Infracciones, prendas, ruleta de cocinero y casino ----------
 
-export type Infraction = { id: string; trip_id: string; name: string; emoji: string }
-export type Forfeit = { id: string; trip_id: string; text: string }
+export type Infraction = { id: string; trip_id: string; name: string; emoji: string; theme?: Theme }
+export type Forfeit = { id: string; trip_id: string; text: string; theme?: Theme }
 
 export type PlayerForfeit = {
   id: string
@@ -137,7 +142,8 @@ export type CasinoSession = {
   created_at: string
 }
 
-export type DuelKind = 'fondo' | 'shots'
+/** 'baile' solo en Hora boliche: bailan y vota el resto */
+export type DuelKind = 'fondo' | 'shots' | 'baile'
 
 export type Duel = {
   id: string
@@ -146,11 +152,13 @@ export type Duel = {
   challenger_id: string
   opponent_id: string
   seconds: number
-  status: 'invited' | 'declined' | 'live' | 'done' | 'cancelled'
+  status: 'invited' | 'declined' | 'live' | 'voting' | 'done' | 'cancelled'
   day: string
   created_at: string
   starts_at: string | null
   ends_at: string | null
+  /** Duelo de baile: hasta cuándo vota el grupo */
+  voting_until?: string | null
   winner_id: string | null
   event_id: string | null
 }
@@ -163,6 +171,9 @@ export type DuelResult = {
   last_shot_at: string | null
   gave_up: boolean
 }
+
+/** Voto de un duelo de baile: a quién eligió */
+export type DuelVote = { duel_id: string; voter_id: string; pick: string }
 
 export type CasinoPlayer = {
   session_id: string
@@ -214,6 +225,7 @@ export type DailyMission = {
   completed_at: string | null
   photo_path: string | null
   group_assigned: boolean
+  theme?: Theme
 }
 
 export type PlayerCard = {
@@ -248,6 +260,7 @@ export type TripDetail = {
   casinoPlayers: CasinoPlayer[]
   duels: Duel[]
   duelResults: DuelResult[]
+  duelVotes: DuelVote[]
   /** Hora del servidor al leer (para sincronizar cuentas regresivas) */
   serverTime: string
 }
@@ -261,6 +274,10 @@ export type Api = {
   removeFriend(friendId: string): Promise<void>
   listTrips(): Promise<Trip[]>
   createTrip(trip: NewTrip): Promise<string>
+  /** Solo el organizador: borra el viaje, sus fotos y todo lo que pasó */
+  deleteTrip(tripId: string): Promise<void>
+  /** Solo el organizador: suma amigos a un viaje ya creado */
+  addTripMembers(tripId: string, memberIds: string[]): Promise<number>
 
   getTrip(tripId: string): Promise<TripDetail>
   /** Cierra lo que ya venció (votaciones, casino, duelos). Lo llama la app al llegar la hora */
@@ -292,9 +309,9 @@ export type Api = {
   /** Cosas que esperan tu voto, por viaje */
   pendingCounts(): Promise<Record<string, number>>
 
-  saveInfraction(tripId: string, item: { id?: string; name: string; emoji: string }): Promise<void>
+  saveInfraction(tripId: string, item: { id?: string; name: string; emoji: string; theme?: Theme }): Promise<void>
   archiveInfraction(id: string): Promise<void>
-  saveForfeit(tripId: string, item: { id?: string; text: string }): Promise<void>
+  saveForfeit(tripId: string, item: { id?: string; text: string; theme?: Theme }): Promise<void>
   archiveForfeit(id: string): Promise<void>
   reportInfraction(tripId: string, userId: string, infractionId: string, photoPaths: string[]): Promise<void>
   completeForfeit(forfeitId: string, photoPath: string | null): Promise<void>
@@ -311,6 +328,13 @@ export type Api = {
   respondDuel(duelId: string, accept: boolean): Promise<void>
   duelAction(duelId: string, action: 'finish' | 'shot' | 'give_up'): Promise<void>
   cancelDuel(duelId: string): Promise<void>
+  /** Duelo de baile: votás quién bailó mejor */
+  voteDuel(duelId: string, pickId: string): Promise<void>
+
+  /** Solo el organizador: prende o apaga la Hora boliche */
+  setBoliche(tripId: string, on: boolean): Promise<void>
+  /** Cambia tu misión de hoy por una de boliche (una vez) */
+  swapBolicheMission(tripId: string): Promise<void>
 }
 
 /** Lanza un Error con el mensaje de Supabase (los RPC usan códigos tipo FRIEND_IS_SELF) */
@@ -387,6 +411,48 @@ async function createTrip(trip: NewTrip): Promise<string> {
 // ---------- Juego del viaje (Supabase) ----------
 
 const PHOTO_BUCKET = 'trip-photos'
+
+/** Todas las fotos guardadas del viaje (carpeta <viaje>/<usuario>/…) */
+async function listTripPhotos(tripId: string): Promise<string[]> {
+  const bucket = requireSupabase().storage.from(PHOTO_BUCKET)
+  const page = 1000
+  const { data: folders, error } = await bucket.list(tripId, { limit: page })
+  if (error) throw new Error(error.message)
+  const paths: string[] = []
+  for (const folder of folders ?? []) {
+    if (folder.id) {
+      paths.push(`${tripId}/${folder.name}`)
+      continue
+    }
+    for (let offset = 0; ; offset += page) {
+      const { data, error: err } = await bucket.list(`${tripId}/${folder.name}`, { limit: page, offset })
+      if (err) throw new Error(err.message)
+      for (const file of data ?? []) if (file.id) paths.push(`${tripId}/${folder.name}/${file.name}`)
+      if (!data || data.length < page) break
+    }
+  }
+  return paths
+}
+
+async function deleteTrip(tripId: string) {
+  const sb = requireSupabase()
+  // Primero las fotos (mientras sigue existiendo el viaje y se puede comprobar que sos el organizador)
+  try {
+    const paths = await listTripPhotos(tripId)
+    for (let i = 0; i < paths.length; i += 100) {
+      const { error } = await sb.storage.from(PHOTO_BUCKET).remove(paths.slice(i, i + 100))
+      if (error) throw new Error(error.message)
+    }
+  } catch {
+    // Si alguna foto no se pudo borrar, el viaje se elimina igual
+  }
+  check(await sb.rpc('delete_trip', { p_trip: tripId }))
+}
+
+async function addTripMembers(tripId: string, memberIds: string[]) {
+  const sb = requireSupabase()
+  return check(await sb.rpc('add_trip_members', { p_trip: tripId, p_member_ids: memberIds })) as number
+}
 
 const TRIP_COLUMNS =
   'id, owner_id, name, trip_date, place, created_at, kind, mission_points_easy, mission_points_medium, mission_points_extreme, quiebre_penalty, day_cutoff_hour, chef_points, casino_points, duel_points, members:trip_members(user_id, role, profile:profiles(id, display_name))'
@@ -502,6 +568,7 @@ async function getTripLegacy(tripId: string): Promise<TripDetail> {
     casinoPlayers: check(casinoPlayers) as CasinoPlayer[],
     duels: check(duels) as Duel[],
     duelResults: check(duelResults) as DuelResult[],
+    duelVotes: [],
     serverTime: (check(serverTime) as string) ?? new Date().toISOString(),
   }
 }
@@ -509,8 +576,11 @@ async function getTripLegacy(tripId: string): Promise<TripDetail> {
 async function saveListItem(table: 'trip_infractions' | 'trip_forfeits', tripId: string, row: Record<string, unknown> & { id?: string }) {
   const sb = requireSupabase()
   const { id, ...values } = row
-  if (id) check(await sb.from(table).update(values).eq('id', id))
-  else check(await sb.from(table).insert({ ...values, trip_id: tripId }))
+  if (id) {
+    // El tema (normal / boliche) se elige al crearla y no se cambia
+    const { theme: _theme, ...changes } = values
+    check(await sb.from(table).update(changes).eq('id', id))
+  } else check(await sb.from(table).insert({ ...values, trip_id: tripId }))
 }
 
 async function archiveListItem(table: 'trip_infractions' | 'trip_forfeits', id: string) {
@@ -584,6 +654,8 @@ export const supabaseApi: Api = {
   removeFriend,
   listTrips,
   createTrip,
+  deleteTrip,
+  addTripMembers,
 
   getTrip,
   async tickTrip(tripId) {
@@ -687,5 +759,14 @@ export const supabaseApi: Api = {
   },
   async cancelDuel(duelId) {
     await rpc('cancel_duel', { p_duel: duelId })
+  },
+  async voteDuel(duelId, pickId) {
+    await rpc('vote_duel', { p_duel: duelId, p_pick: pickId })
+  },
+  async setBoliche(tripId, on) {
+    await rpc('set_boliche', { p_trip: tripId, p_on: on })
+  },
+  async swapBolicheMission(tripId) {
+    await rpc('swap_boliche_mission', { p_trip: tripId })
   },
 }
