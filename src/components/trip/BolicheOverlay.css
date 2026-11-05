@@ -1,0 +1,127 @@
+/* Hora boliche: bola de espejos girando y haces de luz */
+.boliche-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(140, 60, 255, 0.55), transparent 60%),
+    radial-gradient(90% 60% at 50% 110%, rgba(255, 40, 160, 0.45), transparent 60%),
+    #0b0614;
+  color: #fff;
+  text-align: center;
+  cursor: pointer;
+  animation: bo-in 0.35s ease-out both;
+}
+
+.boliche-overlay.is-leaving { animation: bo-out 0.35s ease-in both; }
+
+.bo-beams { position: absolute; inset: 0; pointer-events: none; }
+
+.bo-beam {
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  width: 22vmax;
+  height: 120vmax;
+  margin-left: -11vmax;
+  transform-origin: 50% 0;
+  background: linear-gradient(to bottom, var(--c), transparent 75%);
+  opacity: 0.35;
+  filter: blur(6px);
+  mix-blend-mode: screen;
+  animation: bo-sweep 2.4s ease-in-out infinite alternate;
+}
+
+.bo-beam--0 { --c: #ff2fb3; --from: -55deg; --to: -15deg; }
+.bo-beam--1 { --c: #34e7ff; --from: 50deg; --to: 10deg; animation-delay: -0.6s; }
+.bo-beam--2 { --c: #b46bff; --from: -30deg; --to: 25deg; animation-delay: -1.2s; }
+.bo-beam--3 { --c: #ffe14d; --from: 35deg; --to: -20deg; animation-delay: -0.3s; }
+.bo-beam--4 { --c: #4dff8f; --from: -10deg; --to: 45deg; animation-delay: -1.6s; }
+.bo-beam--5 { --c: #ff6a3d; --from: 20deg; --to: -45deg; animation-delay: -0.9s; }
+
+.bo-ball-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: bo-drop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.bo-string { width: 3px; height: 70px; background: linear-gradient(#777, #ccc); }
+
+.bo-ball {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 15px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 15px),
+    conic-gradient(from 0deg, #f4f4ff, #9aa3c7, #ffffff, #7b84b0, #e9ecff, #a7b0d6, #f4f4ff);
+  box-shadow:
+    inset -18px -18px 30px rgba(0, 0, 0, 0.45),
+    inset 10px 10px 20px rgba(255, 255, 255, 0.6),
+    0 0 60px rgba(180, 120, 255, 0.7),
+    0 0 120px rgba(255, 60, 180, 0.35);
+  animation: bo-spin 1.2s linear infinite;
+}
+
+.bo-sign {
+  position: relative;
+  margin: 10px 0 0;
+  font-family: var(--font-logo);
+  font-size: clamp(2.6rem, 13vw, 4.6rem);
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    0 0 8px #ff2fb3,
+    0 0 22px #ff2fb3,
+    0 0 42px #b46bff;
+  animation: bo-flicker 1.6s steps(1) infinite, bo-pop 0.6s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.bo-sub {
+  position: relative;
+  max-width: 320px;
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: rgba(255, 240, 255, 0.92);
+}
+
+.bo-hint {
+  position: relative;
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+@keyframes bo-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bo-out { to { opacity: 0; transform: scale(1.04); } }
+@keyframes bo-drop { from { transform: translateY(-220px); } to { transform: translateY(0); } }
+@keyframes bo-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes bo-spin { to { background-position: 15px 0, 0 0, 0 0; filter: hue-rotate(40deg); } }
+@keyframes bo-sweep { from { transform: rotate(var(--from)); } to { transform: rotate(var(--to)); } }
+@keyframes bo-flicker {
+  0%, 100% { opacity: 1; }
+  47% { opacity: 1; }
+  48% { opacity: 0.55; }
+  50% { opacity: 1; }
+  82% { opacity: 0.8; }
+  83% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boliche-overlay,
+  .boliche-overlay.is-leaving,
+  .bo-beam,
+  .bo-ball-wrap,
+  .bo-ball,
+  .bo-sign { animation: none; }
+}

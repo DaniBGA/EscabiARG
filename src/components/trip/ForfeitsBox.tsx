@@ -13,10 +13,12 @@ type Props = {
   onChange: (message?: string) => void
   /** Se pueden reportar infracciones nuevas (no en una salida cerrada) */
   canReport?: boolean
+  /** Hora boliche: se ofrecen las infracciones de boliche */
+  boliche?: boolean
 }
 
 /** Infracciones (las reporta cualquiera, valida la mayoría) y las prendas que tocan */
-export default function ForfeitsBox({ detail, me, onChange, canReport = true }: Props) {
+export default function ForfeitsBox({ detail, me, onChange, canReport = true, boliche = false }: Props) {
   const api = useApi()
   const members = detail.trip.members
   const name = (id: string) => (id === me ? 'Vos' : members.find((m) => m.user_id === id)?.profile?.display_name ?? '?')
@@ -28,6 +30,9 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true }: 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const theme = boliche ? 'boliche' : 'normal'
+  const themed = detail.infractions.filter((i) => (i.theme ?? 'normal') === theme)
+  const infractions = themed.length > 0 ? themed : detail.infractions
   const mine = detail.playerForfeits.filter((f) => f.user_id === me && f.status === 'to_do')
   const others = detail.playerForfeits.filter((f) => !(f.user_id === me && f.status === 'to_do')).slice(0, 12)
 
@@ -135,7 +140,7 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true }: 
           <div>
             <p className="step-label">2. ¿Qué hizo?</p>
             <div className="infraction-grid">
-              {detail.infractions.map((i) => (
+              {infractions.map((i) => (
                 <button key={i.id} type="button" className={`infraction-choice${i.id === infraction ? ' is-selected' : ''}`}
                   onClick={() => setInfraction(i.id)} aria-pressed={i.id === infraction}>
                   <span aria-hidden="true">{i.emoji}</span> {i.name}

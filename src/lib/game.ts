@@ -195,6 +195,7 @@ export type PendingItem =
   | { type: 'casinoReport'; session: CasinoSession }
   | { type: 'forfeit'; forfeit: PlayerForfeit }
   | { type: 'duelInvite'; duel: Duel }
+  | { type: 'duelVote'; duel: Duel }
 
 export function myPendingItems(detail: TripDetail, me: string, now = Date.now()): PendingItem[] {
   const members = detail.trip.members
@@ -241,6 +242,10 @@ export function myPendingItems(detail: TripDetail, me: string, now = Date.now())
     if (d.status === 'invited' && d.opponent_id === me && Date.parse(d.created_at) + DUEL_INVITE_MS > now) {
       items.push({ type: 'duelInvite', duel: d })
     }
+    if (isDanceVoting(d, now) && d.challenger_id !== me && d.opponent_id !== me &&
+        !(detail.duelVotes ?? []).some((v) => v.duel_id === d.id && v.voter_id === me)) {
+      items.push({ type: 'duelVote', duel: d })
+    }
   }
   return items
 }
@@ -252,10 +257,27 @@ export const DUEL_MAX_SHOTS = 3
 export const DUELS_PER_DAY = 3
 export const FONDO_SECONDS = [15, 30, 60, 120]
 export const SHOTS_SECONDS = [30, 60, 120, 180]
+export const DANCE_SECONDS = [30, 60, 90]
+/** Después del baile, el resto vota durante esto */
+export const DANCE_VOTE_MS = 90_000
 
-/** Duelo en vivo (o por arrancar) donde participás */
+/** Cuándo termina la votación de un duelo de baile */
+export const danceVoteUntil = (d: Duel) =>
+  d.voting_until ? Date.parse(d.voting_until) : d.ends_at ? Date.parse(d.ends_at) + DANCE_VOTE_MS : 0
+
+/** Duelo de baile en votación (o que terminó de bailarse y todavía no lo cerró nadie) */
+export const isDanceVoting = (d: Duel, now = Date.now()) =>
+  d.kind === 'baile' &&
+  (d.status === 'voting' || (d.status === 'live' && !!d.ends_at && Date.parse(d.ends_at) <= now)) &&
+  danceVoteUntil(d) > now
+
+/** Duelo en vivo (o por arrancar, o en votación) donde participás */
 export const myLiveDuel = (duels: Duel[], me: string) =>
-  duels.find((d) => d.status === 'live' && (d.challenger_id === me || d.opponent_id === me)) ?? null
+  duels.find((d) => (d.status === 'live' || d.status === 'voting') && (d.challenger_id === me || d.opponent_id === me)) ?? null
+
+/** Nombre del duelo según el modo */
+export const duelLabel = (kind: Duel['kind'], boliche = false) =>
+  kind === 'baile' ? 'duelo de baile' : kind === 'fondo' ? (boliche ? 'fondo blanco en la barra' : 'fondo blanco') : boliche ? 'shots en la barra' : 'shots'
 
 export const formatDuelTime = (s: number) => (s < 60 ? `${s} s` : `${s / 60} min`)
 

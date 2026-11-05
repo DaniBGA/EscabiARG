@@ -9,7 +9,9 @@ import {
   activeChefSpin,
   cardDef,
   formatDay,
+  formatTime,
   isActiveChallenge,
+  isDanceVoting,
   myLiveDuel,
   myMissionToday,
   outingState,
@@ -22,6 +24,7 @@ import { goHome } from '../lib/router'
 import Avatar from '../components/Avatar'
 import { BackIcon, DizzyIcon, FlameIcon, MugIcon } from '../components/icons'
 import ActivityFeed from '../components/trip/ActivityFeed'
+import BolicheOverlay from '../components/trip/BolicheOverlay'
 import BurnSheet from '../components/trip/BurnSheet'
 import CardsSection from '../components/trip/CardsSection'
 import CasinoBox from '../components/trip/CasinoBox'
@@ -33,6 +36,7 @@ import ForfeitsBox from '../components/trip/ForfeitsBox'
 import ListsEditor from '../components/trip/ListsEditor'
 import GalleryTab from '../components/trip/GalleryTab'
 import LogDrinkSheet from '../components/trip/LogDrinkSheet'
+import MembersSheet from '../components/trip/MembersSheet'
 import MissionCard from '../components/trip/MissionCard'
 import MissionsBoard from '../components/trip/MissionsBoard'
 import PendingSection from '../components/trip/PendingSection'
@@ -43,7 +47,7 @@ import ScoreBoard from '../components/trip/ScoreBoard'
 import './TripScreen.css'
 
 type Tab = 'play' | 'board' | 'feed' | 'gallery' | 'drinks'
-type SheetName = 'none' | 'drink' | 'quiebre' | 'burn' | 'roulette'
+type SheetName = 'none' | 'drink' | 'quiebre' | 'burn' | 'roulette' | 'members'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'play', label: 'Jugar' },
@@ -86,6 +90,13 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const [clockOffset, setClockOffset] = useState(0)
   const [closedDuels, setClosedDuels] = useState<Record<string, boolean>>({})
   const [quiebreTitle, setQuiebreTitle] = useState<string | null>(null)
+  /** Arrancó la Hora boliche: animación (una vez por activación) */
+  const [bolicheBy, setBolicheBy] = useState<string | null>(null)
+  const [togglingBoliche, setTogglingBoliche] = useState(false)
+  /** El organizador eliminó el viaje mientras estabas adentro */
+  const [deleted, setDeleted] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const deletingRef = useRef(false)
   const toastTimer = useRef<number | undefined>(undefined)
   const [live, setLive] = useState(false)
   const liveRef = useRef(false)
@@ -145,10 +156,17 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         activeChefSpin(detail.chefSpins) ||
         activeCasino(detail.casinoSessions)),
   )
-  const counting = Boolean(detail && (detail.challenges.some(isActiveChallenge) || activeCasino(detail.casinoSessions)))
+  const counting = Boolean(
+    detail &&
+      (detail.challenges.some(isActiveChallenge) ||
+        activeCasino(detail.casinoSessions) ||
+        detail.duels.some((d) => isDanceVoting(d))),
+  )
   const inDuel = Boolean(
     detail?.duels.some(
-      (d) => (d.status === 'live' || d.status === 'invited') && (d.challenger_id === user.id || d.opponent_id === user.id),
+      (d) =>
+        (d.status === 'live' || d.status === 'invited' || d.status === 'voting') &&
+        (d.challenger_id === user.id || d.opponent_id === user.id),
     ),
   )
 
@@ -163,6 +181,10 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       onChange(change) {
         lastChangeAt.current = Date.now()
         buffered.current?.push(change)
+        if (change.t === 'trips' && change.op === 'DELETE') {
+          if (!deletingRef.current) setDeleted(true)
+          return
+        }
         if (needsReload(change)) scheduleReload()
         else setDetail((prev) => (prev ? applyTripChange(prev, change) : prev))
       },
@@ -223,8 +245,13 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   // Cuenta regresiva de las votaciones
   useEffect(() => {
     if (!counting) return
+    // Arranca con la hora actual (la anterior puede tener varios segundos)
+    const first = window.setTimeout(() => setNow(Date.now()), 0)
     const id = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(id)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(id)
+    }
   }, [counting])
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
@@ -264,6 +291,38 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
     }
   }, [detail, tripId, quiebreTitleFor])
 
+  // Si se activó la Hora boliche hace poco y todavía no la viste, animación a pantalla completa
+  const bolicheAt = detail?.trip.boliche_at ?? null
+  const ownerName = detail
+    ? detail.trip.owner_id === user.id
+      ? 'Vos'
+      : detail.trip.members.find((m) => m.user_id === detail.trip.owner_id)?.profile?.display_name ?? 'el organizador'
+    : ''
+  useEffect(() => {
+    if (!bolicheAt || Date.now() - Date.parse(bolicheAt) > 30 * 60_000) return
+    const key = `escabiarg:seen-boliche:${tripId}`
+    try {
+      if (localStorage.getItem(key) === bolicheAt) return
+      localStorage.setItem(key, bolicheAt)
+    } catch {
+      // sin localStorage puede repetirse, no pasa nada
+    }
+    setBolicheBy(ownerName)
+  }, [bolicheAt, tripId, ownerName])
+
+  const toggleBoliche = async (on: boolean) => {
+    if (!on && !window.confirm('¿Terminar la Hora boliche? Vuelven las misiones, prendas y duelos de siempre.')) return
+    setTogglingBoliche(true)
+    try {
+      await api.setBoliche(tripId, on)
+      refresh(on ? undefined : '🌙 Se terminó la Hora boliche')
+    } catch (err) {
+      showToast(friendlyError(err))
+    } finally {
+      setTogglingBoliche(false)
+    }
+  }
+
   const showToast = (message?: string) => {
     if (!message) return
     setToast(message)
@@ -279,6 +338,36 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const goTo = (anchor: string) => {
     setTab('play')
     window.setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
+
+  const removeTrip = async () => {
+    if (!detail) return
+    const what = detail.trip.kind === 'salida' ? 'la salida' : 'el viaje'
+    if (!window.confirm(`¿Eliminar ${what} "${detail.trip.name}"?\n\nSe borra para todos: puntos, fotos, actividad, prendas y duelos.`)) return
+    if (!window.confirm('¿Seguro? No se puede deshacer.')) return
+    deletingRef.current = true
+    setDeleting(true)
+    try {
+      await api.deleteTrip(tripId)
+      goHome()
+    } catch (err) {
+      deletingRef.current = false
+      setDeleting(false)
+      showToast(friendlyError(err))
+    }
+  }
+
+  if (deleted) {
+    return (
+      <div className="trip-screen trip-screen--center">
+        <div className="home-error">
+          <p className="notice" role="status">🗑️ El organizador eliminó este viaje.</p>
+          <div className="home-error-actions">
+            <button type="button" className="btn btn--primary" onClick={goHome}>Volver al inicio</button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!detail) {
@@ -302,6 +391,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const { trip, drinks, events, missions, cards } = detail
   const members = trip.members
   const isOwner = trip.owner_id === me
+  const boliche = Boolean(trip.boliche_at)
   const today = tripDay(trip.day_cutoff_hour, now)
   const waiting = pendingPoints(events, me)
   const todayRow = scoreboard(members, events, today).find((r) => r.userId === me)
@@ -324,7 +414,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const shieldActive = activeCards.some((c) => cardDef(c.card_key).effect === 'shield')
 
   return (
-    <div className="trip-screen" data-live={live || undefined}>
+    <div className={`trip-screen${boliche ? ' is-boliche' : ''}`} data-live={live || undefined}>
       <header className="trip-header">
         <div className="trip-header-bar">
           <button type="button" className="header-btn" onClick={goHome} aria-label="Volver al inicio">
@@ -343,11 +433,17 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
                 .join(' · ')}
             </p>
           </div>
-          <span className="trip-avatars" aria-hidden="true">
+          <button
+            type="button"
+            className="trip-avatars"
+            onClick={() => setSheet('members')}
+            aria-label={`Jugadores (${members.length})${isOwner ? ': sumar gente' : ''}`}
+          >
             {members.slice(0, 3).map((m) => (
               <Avatar key={m.user_id} id={m.user_id} name={m.profile?.display_name ?? '?'} size={28} />
             ))}
-          </span>
+            {isOwner && <span className="trip-avatars-add" aria-hidden="true">+</span>}
+          </button>
         </div>
       </header>
 
@@ -414,6 +510,29 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
           </div>
         </div>
         )}
+
+        {boliche ? (
+          <div className="boliche-banner" role="status">
+            <span className="boliche-ball" aria-hidden="true">🪩</span>
+            <div>
+              <strong>Hora boliche</strong>
+              <span>Desde las {formatTime(trip.boliche_at!)} · misiones, prendas y duelos de boliche</span>
+            </div>
+            {isOwner && (
+              <button type="button" className="btn btn--ghost btn--sm" disabled={togglingBoliche} onClick={() => toggleBoliche(false)}>
+                Terminar
+              </button>
+            )}
+          </div>
+        ) : isOwner && canPlay ? (
+          <button type="button" className="boliche-toggle" disabled={togglingBoliche} onClick={() => toggleBoliche(true)}>
+            <span className="boliche-toggle-ball" aria-hidden="true">🪩</span>
+            <span>
+              <strong>{togglingBoliche ? 'Activando…' : 'Activar Hora boliche'}</strong>
+              <small>Las misiones, prendas y duelos pasan a ser de boliche</small>
+            </span>
+          </button>
+        ) : null}
 
         {(doubleActive || shieldActive) && (
           <p className="active-effects">
@@ -499,13 +618,17 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
                 rules={trip}
                 mission={mission}
                 underVote={missionUnderVote}
+                boliche={boliche}
                 onChange={refresh}
               />
               <MissionsBoard detail={detail} me={me} today={today} now={now} onChange={refresh} />
-              <DuelsBox detail={detail} me={me} today={today} onChange={refresh} />
-              <ChefRouletteBox detail={detail} me={me} onChange={refresh} />
-              <CasinoBox detail={detail} me={me} now={now} isDemo={user.isDemo} onChange={refresh} />
-              <ForfeitsBox detail={detail} me={me} onChange={refresh} />
+              <DuelsBox detail={detail} me={me} today={today} boliche={boliche} onChange={refresh} />
+              <ChefRouletteBox detail={detail} me={me} boliche={boliche} onChange={refresh} />
+              {/* En el boliche no hay casino (salvo que ya hubiera uno en curso) */}
+              {(!boliche || activeCasino(detail.casinoSessions)) && (
+                <CasinoBox detail={detail} me={me} now={now} isDemo={user.isDemo} onChange={refresh} />
+              )}
+              <ForfeitsBox detail={detail} me={me} boliche={boliche} onChange={refresh} />
               {!isOuting && <CardsSection cards={cards} members={members} userId={me} onChange={refresh} />}
             </>
           )}
@@ -529,7 +652,9 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
               onReplayQuiebre={(userId) => setQuiebreTitle(quiebreTitleFor(userId))}
             />
           )}
-          {tab === 'gallery' && <GalleryTab events={events} members={members} userId={me} today={today} />}
+          {tab === 'gallery' && (
+            <GalleryTab events={events} members={members} userId={me} today={today} tripName={trip.name} />
+          )}
           {tab === 'drinks' && (
             <>
               <DrinksTab tripId={tripId} drinks={drinks} rules={trip} isOwner={isOwner} onChange={refresh} />
@@ -540,6 +665,17 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
                 isOwner={isOwner}
                 onChange={refresh}
               />
+              {isOwner && (
+                <section className="card-box card-box--danger" aria-labelledby="danger-title">
+                  <h3 id="danger-title" className="box-title">Zona peligrosa</h3>
+                  <p className="muted small">
+                    Eliminar {isOuting ? 'la salida' : 'el viaje'} borra todo para todos: puntos, fotos, actividad, prendas y duelos.
+                  </p>
+                  <button type="button" className="btn btn--danger-solid btn--block" disabled={deleting} onClick={removeTrip}>
+                    {deleting ? 'Eliminando…' : `🗑️ Eliminar ${isOuting ? 'salida' : 'viaje'}`}
+                  </button>
+                </section>
+              )}
             </>
           )}
         </div>
@@ -563,6 +699,16 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         userId={me}
         members={members}
         penalty={trip.quiebre_penalty}
+        onDone={refresh}
+      />
+      <MembersSheet
+        open={sheet === 'members'}
+        onClose={() => setSheet('none')}
+        tripId={tripId}
+        me={me}
+        members={members}
+        isOwner={isOwner}
+        isOuting={isOuting}
         onDone={refresh}
       />
       <BurnSheet
@@ -615,6 +761,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       })()}
 
       {quiebreTitle && <QuiebreOverlay title={quiebreTitle} onClose={() => setQuiebreTitle(null)} />}
+      {bolicheBy && !quiebreTitle && <BolicheOverlay by={bolicheBy} onClose={() => setBolicheBy(null)} />}
 
       {toast && (
         <div className="toast" role="status">

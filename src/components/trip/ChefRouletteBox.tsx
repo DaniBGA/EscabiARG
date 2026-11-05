@@ -11,6 +11,8 @@ import { uploadPhotos } from './uploadPhotos'
 type Props = {
   detail: TripDetail
   me: string
+  /** Hora boliche: la ruleta elige quién va a la barra a buscar la ronda */
+  boliche?: boolean
   onChange: (message?: string) => void
 }
 
@@ -33,7 +35,7 @@ function markSeen(id: string) {
 }
 
 /** "¿Quién cocina?" / "¿Quién prepara el trago?" */
-export default function ChefRouletteBox({ detail, me, onChange }: Props) {
+export default function ChefRouletteBox({ detail, me, boliche = false, onChange }: Props) {
   const api = useApi()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +47,7 @@ export default function ChefRouletteBox({ detail, me, onChange }: Props) {
   const spin = activeChefSpin(detail.chefSpins)
   const last = detail.chefSpins.find((s) => s.status === 'good' || s.status === 'bad')
   const lastChosen = detail.chefSpins.find((s) => s.chosen_user_id)?.chosen_user_id ?? null
-  const what = (k: ChefKind) => (k === 'comida' ? 'cocina' : 'prepara el trago')
+  const what = (k: ChefKind) => (k === 'comida' ? 'cocina' : boliche ? 'va a la barra a buscar la ronda' : 'prepara el trago')
 
   // La primera vez que ves el resultado, la ruleta gira
   const spinning = Boolean(spin && spin.chosen_user_id && !revealed[spin.id] && !wasSeen(spin.id))
@@ -73,26 +75,38 @@ export default function ChefRouletteBox({ detail, me, onChange }: Props) {
 
   return (
     <section className="card-box card-box--chef" id="chef" aria-labelledby="chef-title">
-      <h3 id="chef-title" className="box-title">¿Quién cocina?</h3>
+      <h3 id="chef-title" className="box-title">{boliche ? '¿Quién va a la barra?' : '¿Quién cocina?'}</h3>
 
       {!spin && (
         <>
           <p className="muted">
-            La ruleta elige quién cocina o prepara el trago. Se tienen que meter <strong>todos</strong> para que gire y
+            {boliche
+              ? 'La ruleta elige quién va a la barra a buscar la ronda para todos. '
+              : 'La ruleta elige quién cocina o prepara el trago. '}
+            Se tienen que meter <strong>todos</strong> para que gire y
             nunca le toca al mismo que la vez anterior.
             {lastChosen && (lastChosen === me
               ? <> Esta vez zafás <strong>vos</strong>.</>
               : <> Esta vez zafa <strong>{name(lastChosen)}</strong>.</>)}
           </p>
           <div className="vote-row chef-start">
-            <button type="button" className="btn btn--primary" disabled={busy}
-              onClick={() => run(() => api.startChefSpin(detail.trip.id, 'comida'), '🍳 ¡Ruleta armada! Que se metan todos')}>
-              ¿Quién cocina?
-            </button>
-            <button type="button" className="btn btn--ghost" disabled={busy}
-              onClick={() => run(() => api.startChefSpin(detail.trip.id, 'trago'), '🍹 ¡Ruleta armada! Que se metan todos')}>
-              ¿Quién prepara el trago?
-            </button>
+            {boliche ? (
+              <button type="button" className="btn btn--primary" disabled={busy}
+                onClick={() => run(() => api.startChefSpin(detail.trip.id, 'trago'), '🍹 ¡Ruleta armada! Que se metan todos')}>
+                ¿Quién va a la barra?
+              </button>
+            ) : (
+              <>
+                <button type="button" className="btn btn--primary" disabled={busy}
+                  onClick={() => run(() => api.startChefSpin(detail.trip.id, 'comida'), '🍳 ¡Ruleta armada! Que se metan todos')}>
+                  ¿Quién cocina?
+                </button>
+                <button type="button" className="btn btn--ghost" disabled={busy}
+                  onClick={() => run(() => api.startChefSpin(detail.trip.id, 'trago'), '🍹 ¡Ruleta armada! Que se metan todos')}>
+                  ¿Quién prepara el trago?
+                </button>
+              </>
+            )}
           </div>
           {last && (
             <p className="muted small">

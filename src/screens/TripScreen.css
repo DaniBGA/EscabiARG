@@ -66,9 +66,68 @@
 }
 
 .trip-avatars {
+  position: relative;
   display: flex;
   flex: none;
+  padding: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
 }
+
+.trip-avatars:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+
+.trip-avatars .trip-avatars-add {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--amber);
+  color: var(--ink);
+  font-weight: 900;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* Jugadores */
+.member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-name { flex: 1; font-weight: 700; }
+
+.member-role {
+  padding: 1px 7px;
+  border: 2px solid var(--amber);
+  border-radius: 4px;
+  color: var(--amber);
+  font-family: var(--font-label);
+  font-weight: 800;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+
+.card-box--danger { --accent: var(--red); --sign-ink: #fff8f0; border-color: #ff8b76; }
 
 .trip-avatars > * { margin-left: -8px; }
 .trip-avatars > :first-child { margin-left: 0; }
@@ -1691,6 +1750,20 @@
   color: var(--ink);
 }
 
+.gallery-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.gallery-progress {
+  font-family: var(--font-hand);
+  font-size: 1.15rem;
+  color: var(--amber);
+}
+
 .gallery-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2189,3 +2262,122 @@
 }
 .validate-text { flex: 1; min-width: 0; }
 .replay-btn { align-self: flex-start; color: #9fd49a; }
+
+/* ---------- Duelo de baile ---------- */
+.duel-voting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.duel-dance {
+  margin: 0;
+  font-size: 4.2rem;
+  line-height: 1;
+  animation: dance-bounce 0.55s ease-in-out infinite alternate;
+}
+
+@keyframes dance-bounce {
+  from { transform: translateY(0) rotate(-8deg); }
+  to { transform: translateY(-14px) rotate(8deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .duel-dance { animation: none; }
+}
+
+/* ---------- Hora boliche ---------- */
+.trip-screen.is-boliche {
+  background:
+    radial-gradient(70% 40% at 15% 0%, rgba(255, 47, 179, 0.18), transparent 70%),
+    radial-gradient(70% 40% at 85% 10%, rgba(52, 231, 255, 0.14), transparent 70%),
+    radial-gradient(90% 50% at 50% 100%, rgba(180, 107, 255, 0.16), transparent 70%);
+  background-attachment: fixed;
+}
+
+.trip-screen.is-boliche .trip-header {
+  border-bottom-color: #ff2fb3;
+  box-shadow: 0 2px 0 var(--ink), 0 5px 0 rgba(255, 47, 179, 0.55), 0 10px 24px rgba(180, 107, 255, 0.35);
+}
+
+.boliche-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 2px solid #000;
+  border-radius: 12px;
+  background:
+    linear-gradient(100deg, rgba(255, 47, 179, 0.35), rgba(180, 107, 255, 0.35) 50%, rgba(52, 231, 255, 0.3)),
+    #150b22;
+  color: #fff;
+  box-shadow: 0 4px 0 #000, 0 0 24px rgba(255, 47, 179, 0.35);
+}
+
+.boliche-banner > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+.boliche-banner strong {
+  font-family: var(--font-logo);
+  font-weight: 400;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 10px #ff2fb3;
+}
+
+.boliche-banner span { font-size: 0.86rem; opacity: 0.9; }
+.boliche-banner .btn { flex: none; color: #fff; }
+
+.boliche-ball {
+  font-size: 2rem;
+  animation: boliche-wobble 2.4s ease-in-out infinite;
+}
+
+.boliche-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border: 2px dashed rgba(255, 120, 210, 0.7);
+  border-radius: 12px;
+  background: rgba(180, 107, 255, 0.08);
+  color: #ffc6ef;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.boliche-toggle > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+
+.boliche-toggle strong {
+  font-family: var(--font-label);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.boliche-toggle small { font-size: 0.82rem; opacity: 0.8; }
+.boliche-toggle:disabled { opacity: 0.6; cursor: wait; }
+.boliche-toggle-ball { font-size: 1.7rem; }
+
+.badge-boliche { color: #c060ff !important; }
+.btn--boliche { margin-top: 8px; color: #a23bd6; }
+
+.seg--lists { margin: 6px 0 10px; }
+.seg-btn--boliche.is-selected { background: #b46bff; color: #fff; }
+
+.quick--dance { border-left-color: #b46bff; }
+
+@keyframes boliche-wobble {
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(12deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boliche-ball { animation: none; }
+}
