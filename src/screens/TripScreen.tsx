@@ -437,7 +437,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             <span>
               Quemar
               <br />
-              <small>Agarrá a alguien tomando agua o Alikal</small>
+              <small>Agarrá a alguien tomando agua para apagar el fuego</small>
             </span>
           </button>
         </div>
