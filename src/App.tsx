@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import BeerLoader from './components/BeerLoader'
 import LoginOptions from './components/LoginOptions'
+import TermsGate from './components/TermsGate'
 import Home from './screens/Home'
 import { useAuth } from './lib/authContext'
 import { matchTrip, useHashRoute } from './lib/router'
@@ -21,20 +22,24 @@ export default function App() {
   }, [loggedIn])
 
   if (introDone && user) {
-    if (tripId) {
-      return (
-        <Suspense
-          fallback={
-            <div className="home home--center">
-              <p className="home-loading" role="status">Sirviendo el viaje…</p>
-            </div>
-          }
-        >
-          <TripScreen key={`${user.id}:${tripId}`} tripId={tripId} user={user} />
-        </Suspense>
-      )
-    }
-    return <Home key={user.id} user={user} />
+    // Primero hay que aceptar los términos (una vez por persona y por versión)
+    return (
+      <TermsGate key={user.id} user={user}>
+        {tripId ? (
+          <Suspense
+            fallback={
+              <div className="home home--center">
+                <p className="home-loading" role="status">Sirviendo el viaje…</p>
+              </div>
+            }
+          >
+            <TripScreen key={`${user.id}:${tripId}`} tripId={tripId} user={user} />
+          </Suspense>
+        ) : (
+          <Home key={user.id} user={user} />
+        )}
+      </TermsGate>
+    )
   }
 
   return (

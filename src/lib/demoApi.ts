@@ -1007,7 +1007,24 @@ function challengeForVoter(data: DemoData, challengeId: string) {
   return c
 }
 
+const DEMO_TERMS_KEY = 'escabiarg:demo-terms'
+
 export const demoApi: Api = {
+  async getTermsVersion() {
+    try {
+      return Number(localStorage.getItem(DEMO_TERMS_KEY) ?? 0) || 0
+    } catch {
+      return 0
+    }
+  },
+  async acceptTerms(_userId, version) {
+    try {
+      localStorage.setItem(DEMO_TERMS_KEY, String(version))
+    } catch {
+      // en modo privado se vuelve a pedir la próxima vez
+    }
+  },
+
   async getMyProfile() {
     await wait()
     return load().me

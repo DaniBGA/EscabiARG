@@ -273,6 +273,9 @@ export type TripDetail = {
 /** Operaciones de datos de la app (implementadas con Supabase o con la demo local) */
 export type Api = {
   getMyProfile(userId: string): Promise<Profile>
+  /** Versión de los términos que aceptó (0 = ninguna) */
+  getTermsVersion(userId: string): Promise<number>
+  acceptTerms(userId: string, version: number): Promise<void>
   updateDisplayName(userId: string, displayName: string): Promise<void>
   listFriends(userId: string): Promise<Profile[]>
   addFriendByCode(code: string): Promise<Profile>
@@ -358,6 +361,38 @@ async function getMyProfile(userId: string): Promise<Profile> {
     await sb.from('profiles').select('id, display_name, friend_code').eq('id', userId).single(),
   )
   return profile as Profile
+}
+
+// Si la base todavía no tiene la migración de términos, se recuerda en este celular
+const termsKey = (userId: string) => `escabiarg:terms:${userId}`
+const localTerms = (userId: string) => {
+  try {
+    return Number(localStorage.getItem(termsKey(userId)) ?? 0) || 0
+  } catch {
+    return 0
+  }
+}
+const missingSchema = (message: string) => /terms_version|accept_terms|could not find|does not exist|schema cache/i.test(message)
+
+async function getTermsVersion(userId: string): Promise<number> {
+  const sb = requireSupabase()
+  const { data, error } = await sb.from('profiles').select('terms_version').eq('id', userId).maybeSingle()
+  if (error) {
+    if (missingSchema(error.message)) return localTerms(userId)
+    throw new Error(error.message)
+  }
+  return Math.max(Number((data as { terms_version?: number } | null)?.terms_version ?? 0), localTerms(userId))
+}
+
+async function acceptTerms(userId: string, version: number) {
+  const sb = requireSupabase()
+  const { error } = await sb.rpc('accept_terms', { p_version: version })
+  if (error && !missingSchema(error.message)) throw new Error(error.message)
+  try {
+    localStorage.setItem(termsKey(userId), String(version))
+  } catch {
+    // ya quedó guardado en la base
+  }
 }
 
 async function updateDisplayName(userId: string, displayName: string): Promise<void> {
@@ -659,6 +694,8 @@ async function rpc(fn: string, args: Record<string, unknown>) {
 
 export const supabaseApi: Api = {
   getMyProfile,
+  getTermsVersion,
+  acceptTerms,
   updateDisplayName,
   listFriends,
   addFriendByCode,

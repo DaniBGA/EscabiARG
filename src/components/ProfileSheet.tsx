@@ -5,6 +5,8 @@ import { friendlyError } from '../lib/errors'
 import Avatar from './Avatar'
 import FriendCode from './FriendCode'
 import Sheet from './Sheet'
+import TermsContent from './TermsContent'
+import './TermsGate.css'
 import './ProfileSheet.css'
 
 type Props = {
@@ -21,6 +23,7 @@ export default function ProfileSheet({ open, onClose, me, user, onChange }: Prop
   const [name, setName] = useState(me.display_name)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showTerms, setShowTerms] = useState(false)
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
@@ -87,6 +90,15 @@ export default function ProfileSheet({ open, onClose, me, user, onChange }: Prop
       <div className="profile-code">
         <FriendCode code={me.friend_code} />
       </div>
+
+      <button type="button" className="btn btn--ghost btn--block profile-terms" onClick={() => setShowTerms(true)}>
+        ⚠️ Términos y condiciones
+      </button>
+      <Sheet open={showTerms} title="Términos y condiciones" onClose={() => setShowTerms(false)}>
+        <div className="terms-sheet">
+          <TermsContent />
+        </div>
+      </Sheet>
 
       <button type="button" className="btn btn--danger btn--block profile-signout" onClick={signOut}>
         {user.isDemo ? 'Salir de la demo' : 'Cerrar sesión'}
