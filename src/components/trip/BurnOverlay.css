@@ -1,116 +1,339 @@
-/* Quemar: llamas que suben desde abajo y cartel ardiendo */
+/*
+ * Quemar: destello, pared de llamas en tres capas, brasas y humo que suben,
+ * la foto del quemado chamuscándose y el sello "¡Quemado!".
+ */
 .burn-overlay {
   position: fixed;
   inset: 0;
   z-index: 60;
+  overflow: hidden;
+  background: radial-gradient(130% 90% at 50% 120%, #4a1100, #1c0602 55%, #0b0201);
+  color: #fff;
+  text-align: center;
+  cursor: pointer;
+  animation: bf-in 0.25s ease-out both, bf-shake 0.5s 0.55s ease-in-out;
+}
+
+.burn-overlay.is-leaving { animation: bf-out 0.45s ease-in both; }
+
+/* Destello del fogonazo */
+.bf-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: radial-gradient(circle at 50% 70%, #fff9e0, #ffb43a 40%, rgba(255, 90, 0, 0) 75%);
+  pointer-events: none;
+  animation: bf-flash 0.7s ease-out both;
+}
+
+/* Calor que late */
+.bf-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(90% 55% at 50% 105%, rgba(255, 120, 20, 0.85), rgba(255, 60, 0, 0.25) 45%, transparent 70%);
+  animation: bf-pulse 1.1s ease-in-out infinite alternate;
+}
+
+/* ---------- Llamas ---------- */
+.bf-wall {
+  position: absolute;
+  inset: auto -5% 0;
+  height: 70vh;
+  pointer-events: none;
+  animation: bf-rise 0.8s 0.15s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+.bf-wall--back { z-index: 1; opacity: 0.85; }
+.bf-wall--mid { z-index: 2; animation-delay: 0.25s; }
+.bf-wall--front { z-index: 5; height: 34vh; animation-delay: 0.35s; }
+
+.bf-flame {
+  position: absolute;
+  bottom: -6vh;
+  width: 22vw;
+  max-width: 170px;
+  height: var(--h);
+  margin-left: -11vw;
+  border-radius: 50% 50% 42% 42% / 72% 72% 28% 28%;
+  transform-origin: 50% 100%;
+  will-change: transform;
+  animation: bf-flicker 0.9s ease-in-out infinite alternate;
+}
+
+.bf-wall--back .bf-flame {
+  background: radial-gradient(55% 60% at 50% 80%, rgba(255, 106, 26, 0.9), rgba(212, 40, 0, 0.7) 45%, rgba(120, 10, 0, 0) 72%);
+}
+
+.bf-wall--mid .bf-flame {
+  background: radial-gradient(55% 60% at 50% 82%, #ffd23d, #ff8a1f 40%, #ff3d00 60%, rgba(200, 30, 0, 0) 75%);
+}
+
+.bf-wall--front .bf-flame {
+  width: 16vw;
+  margin-left: -8vw;
+  background: radial-gradient(50% 55% at 50% 85%, #fffbe6, #ffe066 30%, #ffa21f 55%, rgba(255, 90, 0, 0) 75%);
+}
+
+/* ---------- Brasas ---------- */
+.bf-embers { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+
+.bf-embers span {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 50%;
+  background: #ffd36b;
+  box-shadow: 0 0 6px 2px #ff8a1f;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: bf-ember 2.6s linear infinite;
+}
+
+/* ---------- Humo ---------- */
+.bf-smoke { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+
+.bf-smoke span {
+  position: absolute;
+  bottom: 30vh;
+  width: 38vw;
+  height: 38vw;
+  max-width: 260px;
+  max-height: 260px;
+  margin-left: -19vw;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(90, 80, 75, 0.45), rgba(60, 50, 45, 0.2) 40%, rgba(40, 30, 28, 0) 70%);
+  will-change: transform, opacity;
+  opacity: 0;
+  animation: bf-smoke 3.2s ease-out infinite;
+}
+
+/* ---------- Contenido ---------- */
+.bf-content {
+  position: relative;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 24px;
-  overflow: hidden;
-  background:
-    radial-gradient(90% 60% at 50% 110%, rgba(255, 90, 0, 0.75), transparent 65%),
-    radial-gradient(60% 40% at 50% 100%, rgba(255, 210, 60, 0.5), transparent 70%),
-    #1a0703;
-  color: #fff;
-  text-align: center;
-  cursor: pointer;
-  animation: burn-in 0.3s ease-out both, burn-shake 0.45s 0.15s ease-in-out 2;
+  gap: 10px;
+  height: 100%;
+  padding: 24px 20px 26vh;
 }
 
-.burn-overlay.is-leaving { animation: burn-out 0.35s ease-in both; }
+/* Polaroid del quemado */
+.bf-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 14px;
+  background: #f6ead0;
+  border-radius: 4px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 40px rgba(255, 110, 20, 0.45);
+  animation: bf-card-in 0.7s 0.3s cubic-bezier(0.2, 1.3, 0.4, 1) both, bf-scorch 1.4s 1s ease-in forwards;
+}
 
-.burn-flames {
+.bf-card-photo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 140px;
+  overflow: hidden;
+  background: #2a1a10;
+  border-radius: 2px;
+}
+
+.bf-card-photo .avatar { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.15); }
+
+/* Bordes que se queman */
+.bf-char {
   position: absolute;
-  inset: auto 0 0;
-  height: 70%;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(30, 10, 0, 0.85) 80%, #000 100%),
+    radial-gradient(40% 30% at 0% 100%, rgba(0, 0, 0, 0.9), transparent 70%),
+    radial-gradient(35% 30% at 100% 95%, rgba(0, 0, 0, 0.85), transparent 70%);
+  opacity: 0;
+  animation: bf-char 1.2s 1.1s ease-in forwards;
+}
+
+.bf-card-name {
+  font-family: var(--font-hand);
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #2a1d10;
+}
+
+/* Llamitas lamiendo el borde de abajo de la foto */
+.bf-card-flames {
+  position: absolute;
+  inset: auto 0 -18px;
+  height: 40px;
   pointer-events: none;
 }
 
-.burn-flame {
+.bf-card-flames span {
   position: absolute;
-  bottom: -12%;
-  width: 26vw;
-  max-width: 160px;
-  aspect-ratio: 1 / 2.2;
-  border-radius: 50% 50% 45% 45% / 65% 65% 35% 35%;
-  background: radial-gradient(60% 55% at 50% 75%, #fff3b0 0%, #ffcf3d 25%, #ff7a1a 55%, rgba(220, 40, 0, 0) 75%);
-  filter: blur(2px);
-  mix-blend-mode: screen;
+  bottom: 0;
+  width: 34px;
+  height: 46px;
+  border-radius: 50% 50% 42% 42% / 72% 72% 28% 28%;
+  background: radial-gradient(50% 55% at 50% 85%, #fff3b0, #ffb020 45%, rgba(255, 70, 0, 0) 75%);
   transform-origin: 50% 100%;
-  animation: flame 0.9s ease-in-out infinite alternate;
+  opacity: 0;
+  animation: bf-lick 0.5s 1.05s ease-out forwards, bf-flicker 0.5s 1.5s ease-in-out infinite alternate;
 }
 
-.burn-flame--0 { left: -6%; animation-duration: 0.8s; }
-.burn-flame--1 { left: 8%; height: auto; animation-duration: 1s; animation-delay: -0.3s; }
-.burn-flame--2 { left: 20%; animation-duration: 0.7s; animation-delay: -0.5s; }
-.burn-flame--3 { left: 33%; animation-duration: 0.95s; animation-delay: -0.1s; }
-.burn-flame--4 { left: 45%; animation-duration: 0.75s; animation-delay: -0.6s; }
-.burn-flame--5 { left: 57%; animation-duration: 0.9s; animation-delay: -0.2s; }
-.burn-flame--6 { left: 69%; animation-duration: 0.8s; animation-delay: -0.4s; }
-.burn-flame--7 { left: 81%; animation-duration: 1.05s; animation-delay: -0.7s; }
-.burn-flame--8 { left: 93%; animation-duration: 0.85s; animation-delay: -0.15s; }
+.bf-card-flames span:nth-child(1) { left: 6%; }
+.bf-card-flames span:nth-child(2) { left: 42%; height: 58px; animation-delay: 1.15s, 1.6s; }
+.bf-card-flames span:nth-child(3) { right: 6%; animation-delay: 1.25s, 1.7s; }
 
-.burn-emoji {
-  position: relative;
-  font-size: 6rem;
-  line-height: 1;
-  animation: burn-pop 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both, flame-flicker 0.4s 0.6s ease-in-out infinite alternate;
+/* Sello */
+.bf-stamp {
+  position: absolute;
+  top: 70%;
+  left: 50%;
+  padding: 4px 12px 2px;
+  border: 4px solid #d42800;
+  border-radius: 6px;
+  color: #d42800;
+  background: rgba(246, 234, 208, 0.82);
+  font-family: var(--font-title);
+  font-size: 1.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, -50%) rotate(-14deg);
+  opacity: 0;
+  animation: bf-stamp 0.35s 1.35s cubic-bezier(0.3, 1.6, 0.5, 1) forwards;
 }
 
-.burn-sign {
-  position: relative;
-  margin: 0;
-  max-width: 340px;
+/* Título con fuego que se mueve */
+.bf-sign {
+  margin: 14px 0 0;
+  max-width: 360px;
   font-family: var(--font-logo);
-  font-size: clamp(2.3rem, 11vw, 4rem);
+  font-size: clamp(2.2rem, 10.5vw, 3.8rem);
   line-height: 1.02;
-  color: #fff7d6;
-  text-shadow: 0 0 6px #ffb020, 0 0 18px #ff6a00, 0 0 36px #ff2a00, 3px 3px 0 #5a1400;
-  animation: burn-pop 0.6s 0.15s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  background: linear-gradient(0deg, #ff3d00 0%, #ff9a1f 30%, #ffe27a 55%, #fffbe6 70%, #ffb020 100%);
+  background-size: 100% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 10px rgba(255, 110, 0, 0.8)) drop-shadow(3px 3px 0 #4a0f00);
+  animation: bf-pop 0.6s 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both, bf-fire-text 1.2s 1.1s linear infinite;
 }
 
-.burn-sub {
-  position: relative;
-  max-width: 320px;
+.bf-sub {
   margin: 0;
+  max-width: 320px;
   font-weight: 700;
   font-size: 1.05rem;
-  color: #ffe2c4;
+  color: #ffe6cc;
+  animation: bf-fade 0.5s 0.9s ease-out both;
 }
 
-.burn-sub strong { color: #ff9b86; }
+.bf-sub strong { color: #fff; }
 
-.burn-hint {
-  position: relative;
+.bf-points {
   margin: 0;
-  font-size: 0.8rem;
-  opacity: 0.6;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #ffd1bd;
+  animation: bf-fade 0.5s 1.1s ease-out both;
 }
 
-@keyframes burn-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes burn-out { to { opacity: 0; transform: scale(1.05); } }
-@keyframes burn-pop { from { opacity: 0; transform: scale(0.4) translateY(30px); } to { opacity: 1; transform: none; } }
-@keyframes burn-shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-6px) rotate(-0.6deg); }
-  75% { transform: translateX(6px) rotate(0.6deg); }
+.bf-points span {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #d42800;
+  color: #fff;
+  font-family: var(--font-title);
+  font-size: 1.15rem;
+  transform: rotate(-3deg);
 }
-@keyframes flame {
-  from { transform: scaleY(0.85) scaleX(1.05) rotate(-3deg); opacity: 0.8; }
-  to { transform: scaleY(1.15) scaleX(0.92) rotate(3deg); opacity: 1; }
+
+.bf-hint {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.55;
+  animation: bf-fade 0.5s 1.6s ease-out both;
 }
-@keyframes flame-flicker {
-  from { transform: scale(1) rotate(-4deg); }
-  to { transform: scale(1.08) rotate(4deg); }
+
+/* ---------- Animaciones ---------- */
+@keyframes bf-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bf-out { to { opacity: 0; transform: scale(1.06); filter: brightness(1.6); } }
+@keyframes bf-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes bf-pulse { from { opacity: 0.75; } to { opacity: 1; } }
+@keyframes bf-rise { from { transform: translateY(80%); } to { transform: translateY(0); } }
+
+@keyframes bf-flicker {
+  0% { transform: scaleY(0.88) scaleX(1.06) skewX(-3deg); }
+  50% { transform: scaleY(1.06) scaleX(0.95) skewX(2deg); }
+  100% { transform: scaleY(1.14) scaleX(0.9) skewX(-1deg); }
+}
+
+@keyframes bf-ember {
+  0% { opacity: 0; transform: translate(0, 0) scale(1); }
+  10% { opacity: 1; }
+  80% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--drift), -95vh) scale(0.3); }
+}
+
+@keyframes bf-smoke {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  30% { opacity: 0.7; }
+  100% { opacity: 0; transform: translateY(-60vh) scale(1.6); }
+}
+
+@keyframes bf-card-in {
+  from { opacity: 0; transform: translateY(-120px) rotate(-18deg) scale(0.7); }
+  to { opacity: 1; transform: translateY(0) rotate(-4deg) scale(1); }
+}
+
+@keyframes bf-scorch {
+  to { filter: sepia(0.55) saturate(1.4) brightness(0.88) contrast(1.1); }
+}
+
+@keyframes bf-char { to { opacity: 1; } }
+@keyframes bf-lick { from { opacity: 0; transform: scaleY(0.2); } to { opacity: 1; transform: scaleY(1); } }
+
+@keyframes bf-stamp {
+  from { opacity: 0; transform: translate(-50%, -50%) rotate(-14deg) scale(2.6); }
+  to { opacity: 1; transform: translate(-50%, -50%) rotate(-14deg) scale(1); }
+}
+
+@keyframes bf-pop { from { opacity: 0; transform: scale(0.4) translateY(30px); } to { opacity: 1; transform: none; } }
+@keyframes bf-fire-text { from { background-position: 0 0; } to { background-position: 0 -220%; } }
+@keyframes bf-fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+@keyframes bf-shake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-7px, 3px) rotate(-0.5deg); }
+  40% { transform: translate(6px, -3px) rotate(0.5deg); }
+  60% { transform: translate(-4px, 2px); }
+  80% { transform: translate(3px, -1px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .burn-overlay,
   .burn-overlay.is-leaving,
-  .burn-flame,
-  .burn-emoji,
-  .burn-sign { animation: none; }
+  .bf-flash,
+  .bf-glow,
+  .bf-wall,
+  .bf-flame,
+  .bf-embers span,
+  .bf-smoke span,
+  .bf-card,
+  .bf-char,
+  .bf-card-flames span,
+  .bf-sign,
+  .bf-sub,
+  .bf-points,
+  .bf-hint { animation: none; }
+  .bf-flash, .bf-embers, .bf-smoke { display: none; }
+  .bf-stamp, .bf-char, .bf-card-flames span { opacity: 1; animation: none; }
 }

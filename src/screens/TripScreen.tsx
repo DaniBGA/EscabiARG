@@ -323,6 +323,9 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             : `¡${who(e.actor_id)} quemó a ${who(e.user_id)}!`,
       drink: `${e.emoji} ${e.title}`,
       points: e.points,
+      victimId: e.user_id,
+      victimName: who(e.user_id),
+      byName: e.actor_id === user.id ? 'vos' : who(e.actor_id),
     })
     try {
       localStorage.setItem(key, JSON.stringify([...fresh.map((x) => x.id), ...seen].slice(0, 100)))
