@@ -3,6 +3,7 @@ import type { TripDetail } from '../lib/api'
 import type { LiveChange } from '../lib/realtime'
 import { applyTripChange, needsReload, nextDeadline } from '../lib/tripSync'
 import { useApi, type AppUser } from '../lib/authContext'
+import NotificationsPrompt from '../components/NotificationsPrompt'
 import { friendlyError } from '../lib/errors'
 import {
   activeCasino,
@@ -493,6 +494,14 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       <main className="trip-main">
         {user.isDemo && (
           <p className="demo-banner"><strong>Modo demo</strong> · Probá cargar tragos, misiones y quiebres.</p>
+        )}
+
+        {!user.isDemo && (
+          <NotificationsPrompt
+            api={api}
+            userId={me}
+            name={trip.members.find((m) => m.user_id === me)?.profile?.display_name ?? 'che'}
+          />
         )}
 
         {isOuting && outing === 'upcoming' && trip.trip_date && (

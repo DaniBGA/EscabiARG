@@ -3,7 +3,8 @@ import BeerLoader from './components/BeerLoader'
 import LoginOptions from './components/LoginOptions'
 import TermsGate from './components/TermsGate'
 import Home from './screens/Home'
-import { useAuth } from './lib/authContext'
+import { useApi, useAuth } from './lib/authContext'
+import { useNotificationsBridge } from './lib/useNotifications'
 import { matchTrip, useHashRoute } from './lib/router'
 
 // La pantalla del viaje es la más pesada: se baja aparte para que el inicio cargue antes
@@ -12,9 +13,12 @@ const TripScreen = lazy(loadTripScreen)
 
 export default function App() {
   const { user } = useAuth()
+  const api = useApi()
   const [introDone, setIntroDone] = useState(false)
   const tripId = matchTrip(useHashRoute())
   const loggedIn = introDone && Boolean(user)
+  // Avisos del navegador (en vivo y Web Push)
+  useNotificationsBridge(user, api)
 
   // Ya logueado, se trae en segundo plano para que abrir un viaje sea instantáneo
   useEffect(() => {

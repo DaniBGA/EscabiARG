@@ -11,6 +11,8 @@ type Props = {
   title?: string
   /** Se puede grabar video (hasta 15 s) además de sacar fotos */
   allowVideo?: boolean
+  /** Con qué cámara arranca (para la foto de perfil, la de adelante) */
+  initialFacing?: 'environment' | 'user'
 }
 
 type Mode = 'photo' | 'video'
@@ -24,12 +26,12 @@ const MIN_VIDEO_MS = 700
  * no hay forma de elegir algo de la galería.
  * Video: se graba manteniendo apretado el botón, hasta 15 segundos.
  */
-export default function CameraCapture({ open, onClose, onCapture, title = 'Sacá la foto', allowVideo = false }: Props) {
+export default function CameraCapture({ open, onClose, onCapture, title = 'Sacá la foto', allowVideo = false, initialFacing = 'environment' }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const recRef = useRef<{ rec: MediaRecorder; chunks: Blob[]; started: number; timer: number } | null>(null)
-  const [facing, setFacing] = useState<'environment' | 'user'>('environment')
+  const [facing, setFacing] = useState<'environment' | 'user'>(initialFacing)
   const [mode, setMode] = useState<Mode>('photo')
   const [error, setError] = useState<string | null>(null)
   const [hint, setHint] = useState<string | null>(null)

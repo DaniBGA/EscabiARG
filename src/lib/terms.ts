@@ -65,6 +65,8 @@ export const TERMS: TermsSection[] = [
       'Toda la comunicación entre la app y los servidores viaja cifrada (HTTPS / TLS).',
       'Los datos, fotos y videos se guardan en los servidores de Supabase, cifrados en reposo (AES-256).',
       'Las fotos y videos se guardan en un almacenamiento privado: solo los pueden ver los miembros de ese viaje, a través de enlaces temporales que vencen en una hora.',
+      'La foto de perfil es opcional y la podés cambiar o quitar cuando quieras. Para que cargue rápido se ve con un enlace público con un nombre imposible de adivinar: no la uses si no querés que la vea alguien que tenga ese enlace.',
+      'Las notificaciones son opcionales: solo se activan si vos lo pedís y le das permiso al navegador. Para mandártelas se guarda una dirección cifrada de tu navegador (no tu número ni tu ubicación). Las podés desactivar desde tu perfil o desde el navegador.',
       'Las reglas de acceso de la base de datos impiden que alguien que no forma parte de un viaje vea su información.',
       'Las contraseñas nunca se guardan en texto: solo se guarda una versión cifrada de forma irreversible (hash).',
       'Al eliminar un viaje se borran sus fotos, videos y datos. Podés pedir el acceso, la corrección o la eliminación de tus datos personales (Ley 25.326 de Protección de Datos Personales).',

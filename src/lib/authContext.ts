@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import { supabaseApi, type Api } from './api'
+import { withAvatars } from './avatars'
 import { demoApi } from './demoApi'
 
 export type AppUser = {
@@ -25,7 +26,11 @@ export function useAuth(): AuthState {
   return ctx
 }
 
+// Las dos API pasan por el guardado de fotos de perfil
+const realApi = withAvatars(supabaseApi)
+const demo = withAvatars(demoApi)
+
 /** API de datos correspondiente al usuario actual (Supabase o demo) */
 export function useApi(): Api {
-  return useAuth().user?.isDemo ? demoApi : supabaseApi
+  return useAuth().user?.isDemo ? demo : realApi
 }

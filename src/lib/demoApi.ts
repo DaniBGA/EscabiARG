@@ -404,6 +404,15 @@ export function resetDemoData() {
 /** Pequeña demora para que se sienta como una app real */
 const wait = (ms = 220) => new Promise((r) => setTimeout(r, ms))
 
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
 const byName = (a: Profile, b: Profile) => a.display_name.localeCompare(b.display_name, 'es')
 
 function everyone(data: DemoData) {
@@ -416,7 +425,7 @@ function withProfiles(data: DemoData, trip: StoredTrip) {
     ...trip,
     members: trip.members.map((m) => {
       const p = all.find((e) => e.id === m.user_id)
-      return { ...m, profile: p ? { id: p.id, display_name: p.display_name } : null }
+      return { ...m, profile: p ? { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url ?? null } : null }
     }),
   }
 }
@@ -1028,6 +1037,22 @@ export const demoApi: Api = {
   async getMyProfile() {
     await wait()
     return load().me
+  },
+
+  // En la demo no hay servidor: solo avisos locales
+  async pushPublicKey() {
+    return null
+  },
+  async savePushSubscription() {},
+  async deletePushSubscription() {},
+
+  async setAvatar(_userId, photo) {
+    await wait()
+    const data = load()
+    // En la demo la foto queda guardada en este celular
+    const url = photo ? await blobToDataUrl(photo) : null
+    save({ ...data, me: { ...data.me, avatar_url: url } })
+    return url
   },
 
   async updateDisplayName(_userId, displayName) {

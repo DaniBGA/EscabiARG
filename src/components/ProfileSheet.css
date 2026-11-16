@@ -57,3 +57,79 @@
 }
 
 .profile-terms { margin-top: 18px; }
+
+.profile-photo {
+  position: relative;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.profile-photo:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 3px;
+}
+
+.profile-photo.is-busy .avatar {
+  opacity: 0.55;
+  animation: profile-photo-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes profile-photo-pulse {
+  to {
+    opacity: 0.9;
+  }
+}
+
+.profile-photo-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--amber);
+  font-size: 0.95rem;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.profile-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.profile-chip {
+  padding: 7px 12px;
+  border: 2px solid rgba(239, 236, 226, 0.3);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profile-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.profile-chip--danger {
+  border-color: var(--red);
+  color: #ff9a85;
+}
+
+.profile-photo-status {
+  margin: 8px 0 0;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}

@@ -12,3 +12,17 @@
   letter-spacing: 0.02em;
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
 }
+
+.avatar--photo {
+  overflow: hidden;
+}
+
+.avatar--photo img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}

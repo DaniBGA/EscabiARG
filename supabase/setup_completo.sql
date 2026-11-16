@@ -5496,4 +5496,698 @@ $$;
 revoke execute on function public.accept_terms(int) from public, anon, authenticated;
 grant execute on function public.accept_terms(int) to authenticated;
 
+-- >>>>>>>>>> 20261120000000_foto_de_perfil.sql <<<<<<<<<<
+
+-- EscabiARG: foto de perfil
+--
+-- Cada uno puede ponerse una foto (sacada con la cámara o elegida de la galería).
+-- La app la recorta cuadrada y la achica (unos 30 KB) antes de subirla.
+-- Se guarda en el bucket "avatars": cada uno solo puede subir, cambiar o borrar
+-- la suya. Se ve con un enlace público con un nombre imposible de adivinar
+-- (como en la mayoría de las apps), así carga rápido en todas las listas.
+
+alter table public.profiles
+  add column if not exists avatar_url text check (avatar_url is null or char_length(avatar_url) <= 500);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+set public = true, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Subir mi foto de perfil" on storage.objects;
+create policy "Subir mi foto de perfil" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "Cambiar mi foto de perfil" on storage.objects;
+create policy "Cambiar mi foto de perfil" on storage.objects for update to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "Borrar mi foto de perfil" on storage.objects;
+create policy "Borrar mi foto de perfil" on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Ver las propias (para poder listarlas y borrar la anterior)
+drop policy if exists "Ver mis fotos de perfil" on storage.objects;
+create policy "Ver mis fotos de perfil" on storage.objects for select to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Guardar (o quitar) la foto: solo una de tu propia carpeta
+create or replace function public.set_avatar(p_url text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  me uuid := auth.uid();
+begin
+  if me is null then
+    raise exception 'NOT_AUTHENTICATED';
+  end if;
+  if p_url is not null and (
+    char_length(p_url) > 500
+    or position('/storage/v1/object/public/avatars/' || me::text || '/' in p_url) = 0
+  ) then
+    raise exception 'AVATAR_INVALID';
+  end if;
+  update public.profiles set avatar_url = p_url where id = me;
+end;
+$$;
+
+revoke execute on function public.set_avatar(text) from public, anon, authenticated;
+grant execute on function public.set_avatar(text) to authenticated;
+
+-- Al cambiar la foto se avisa en vivo a sus viajes y amigos
+create or replace function public.broadcast_profile_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_trip uuid;
+  v_friend uuid;
+  v_payload jsonb;
+begin
+  if new.display_name is not distinct from old.display_name
+     and new.avatar_url is not distinct from old.avatar_url then
+    return null;
+  end if;
+  for v_trip in select trip_id from public.trip_members where user_id = new.id loop
+    perform public.rt_send(
+      'trip:' || v_trip,
+      jsonb_build_object('t', 'trip_members', 'op', 'UPDATE',
+                         'row', jsonb_build_object('trip_id', v_trip, 'user_id', new.id))
+    );
+  end loop;
+  v_payload := jsonb_build_object('t', 'friendships', 'op', 'UPDATE',
+                                  'row', jsonb_build_object('friend_id', new.id));
+  for v_friend in select user_id from public.friendships where friend_id = new.id loop
+    perform public.rt_send('user:' || v_friend, v_payload);
+  end loop;
+  return null;
+end;
+$$;
+
+-- La lectura del viaje trae la foto de cada jugador
+create or replace function public.get_trip_state(p_trip uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  result jsonb;
+begin
+  perform public.require_trip_member(p_trip);
+  perform public.resolve_due(p_trip);
+
+  select jsonb_build_object(
+    'trip', (
+      select to_jsonb(t) || jsonb_build_object(
+        'members', coalesce((
+          select jsonb_agg(
+            jsonb_build_object(
+              'user_id', m.user_id,
+              'role', m.role,
+              'profile', case when p.id is null then null
+                              else jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar_url', p.avatar_url) end
+            )
+            order by m.added_at, m.user_id
+          )
+          from public.trip_members m
+          left join public.profiles p on p.id = m.user_id
+          where m.trip_id = t.id
+        ), '[]'::jsonb)
+      )
+      from public.trips t where t.id = p_trip
+    ),
+    'drinks', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.points, x.created_at)
+      from public.trip_drinks x where x.trip_id = p_trip and not x.archived
+    ), '[]'::jsonb),
+    -- La actividad es lo que más crece: se mandan solo las columnas que usa la app
+    'events', coalesce((
+      select jsonb_agg(
+        to_jsonb(x) - 'trip_id' - 'drink_id' - 'card_id' - 'resolved_at'
+        order by x.created_at desc
+      )
+      from public.trip_events x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'missions', coalesce((
+      select jsonb_agg(to_jsonb(x)) from public.daily_missions x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'cards', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at)
+      from public.player_cards x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    -- Los votos solo hacen falta mientras la foto está por validarse
+    'eventVotes', coalesce((
+      select jsonb_agg(jsonb_build_object('event_id', x.event_id, 'voter_id', x.voter_id, 'valid', x.valid))
+      from public.event_votes x
+      join public.trip_events e on e.id = x.event_id and e.status = 'pending'
+      where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'challenges', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at desc)
+      from public.mission_challenges x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'badVotes', coalesce((
+      select jsonb_agg(to_jsonb(x)) from public.challenge_bad_votes x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'options', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at)
+      from public.challenge_options x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'optionVotes', coalesce((
+      select jsonb_agg(to_jsonb(x)) from public.challenge_option_votes x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'infractions', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at)
+      from public.trip_infractions x where x.trip_id = p_trip and not x.archived
+    ), '[]'::jsonb),
+    'forfeits', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at)
+      from public.trip_forfeits x where x.trip_id = p_trip and not x.archived
+    ), '[]'::jsonb),
+    'playerForfeits', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at desc)
+      from public.player_forfeits x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'chefSpins', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at desc)
+      from (
+        select * from public.chef_spins where trip_id = p_trip order by created_at desc limit 20
+      ) x
+    ), '[]'::jsonb),
+    'chefPlayers', coalesce((
+      select jsonb_agg(to_jsonb(x)) from public.chef_spin_players x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'chefVotes', coalesce((
+      select jsonb_agg(to_jsonb(x)) from public.chef_votes x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'casinoSessions', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at desc)
+      from (
+        select * from public.casino_sessions where trip_id = p_trip order by created_at desc limit 10
+      ) x
+    ), '[]'::jsonb),
+    'casinoPlayers', coalesce((
+      select jsonb_agg(to_jsonb(x)) from public.casino_players x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'duels', coalesce((
+      select jsonb_agg(to_jsonb(x) order by x.created_at desc)
+      from (
+        select * from public.duels where trip_id = p_trip order by created_at desc limit 30
+      ) x
+    ), '[]'::jsonb),
+    'duelResults', coalesce((
+      select jsonb_agg(to_jsonb(x)) from public.duel_results x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'duelVotes', coalesce((
+      select jsonb_agg(to_jsonb(x) - 'trip_id') from public.duel_votes x where x.trip_id = p_trip
+    ), '[]'::jsonb),
+    'serverTime', to_jsonb(clock_timestamp())
+  ) into result;
+
+  return result;
+end;
+$$;
+
+-- >>>>>>>>>> 20261121000000_notificaciones.sql <<<<<<<<<<
+
+-- EscabiARG: notificaciones
+--
+-- Cuando pasa algo en un viaje (te desafían, te queman, hay algo para votar,
+-- arranca la Hora boliche...) la base arma el aviso para cada jugador.
+--   * Con la app abierta (o en otra pestaña) el aviso llega por el tiempo real
+--     y el navegador lo muestra como notificación.
+--   * Con el navegador cerrado o el celular bloqueado llega por Web Push: lo
+--     manda la función "push" (supabase/functions/push) a los celulares que
+--     activaron las notificaciones.
+-- Nadie puede leer los avisos de otro; los celulares suscriptos solo los ve
+-- el servidor.
+
+-- ---------- Avisos ----------
+
+create table if not exists public.notifications (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  trip_id uuid references public.trips (id) on delete cascade,
+  title text not null,
+  body text not null,
+  -- Avisos con la misma etiqueta se reemplazan (ej: "hay cosas para votar")
+  tag text not null,
+  url text not null default '',
+  created_at timestamptz not null default now(),
+  pushed_at timestamptz
+);
+
+create index if not exists notifications_unpushed_idx on public.notifications (id) where pushed_at is null;
+create index if not exists notifications_created_idx on public.notifications (created_at);
+
+alter table public.notifications enable row level security;
+revoke all on public.notifications from anon, authenticated;
+grant select on public.notifications to authenticated;
+
+drop policy if exists "Ver mis avisos" on public.notifications;
+create policy "Ver mis avisos" on public.notifications for select to authenticated
+  using (user_id = (select auth.uid()));
+
+-- ---------- Celulares suscriptos a Web Push ----------
+
+create table if not exists public.push_subscriptions (
+  endpoint text primary key check (char_length(endpoint) between 10 and 1000),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  p256dh text not null check (char_length(p256dh) between 20 and 200),
+  auth text not null check (char_length(auth) between 8 and 100),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+
+alter table public.push_subscriptions enable row level security;
+revoke all on public.push_subscriptions from anon, authenticated;
+
+create or replace function public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  me uuid := auth.uid();
+begin
+  if me is null then
+    raise exception 'NOT_AUTHENTICATED';
+  end if;
+  if p_endpoint is null or p_endpoint !~ '^https://' or char_length(p_endpoint) > 1000 then
+    raise exception 'PUSH_INVALID';
+  end if;
+  -- Un celular es de una sola cuenta: si cambió de cuenta, pasa a la nueva
+  insert into public.push_subscriptions (endpoint, user_id, p256dh, auth)
+  values (p_endpoint, me, p_p256dh, p_auth)
+  on conflict (endpoint) do update
+  set user_id = me, p256dh = excluded.p256dh, auth = excluded.auth, created_at = now();
+  -- Hasta 10 celulares/navegadores por persona
+  delete from public.push_subscriptions
+  where user_id = me and endpoint in (
+    select endpoint from public.push_subscriptions where user_id = me
+    order by created_at desc offset 10
+  );
+end;
+$$;
+
+create or replace function public.delete_push_subscription(p_endpoint text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from public.push_subscriptions where endpoint = p_endpoint and user_id = auth.uid();
+$$;
+
+revoke execute on function public.save_push_subscription(text, text, text) from public, anon, authenticated;
+revoke execute on function public.delete_push_subscription(text) from public, anon, authenticated;
+grant execute on function public.save_push_subscription(text, text, text) to authenticated;
+grant execute on function public.delete_push_subscription(text) to authenticated;
+
+-- Solo para la función "push" (usa la clave de servidor): toma los avisos
+-- nuevos y los devuelve con los celulares a los que hay que mandarlos.
+create or replace function public.claim_push_batch()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  result jsonb;
+begin
+  with batch as (
+    update public.notifications n
+    set pushed_at = now()
+    where n.id in (
+      select id from public.notifications
+      where pushed_at is null
+      order by id
+      limit 300
+      for update skip locked
+    )
+    returning n.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'endpoint', s.endpoint,
+    'p256dh', s.p256dh,
+    'auth', s.auth,
+    'payload', jsonb_build_object(
+      'id', b.id, 'title', b.title, 'body', b.body, 'tag', b.tag, 'url', b.url, 'trip', b.trip_id
+    )
+  ) order by b.id), '[]'::jsonb)
+  into result
+  from batch b
+  join public.push_subscriptions s on s.user_id = b.user_id
+  -- Un aviso viejo ya no sirve (ej: la función estuvo apagada)
+  where b.created_at > now() - interval '15 minutes';
+
+  delete from public.notifications where created_at < now() - interval '3 days';
+  return result;
+end;
+$$;
+
+-- El celular ya no existe (desinstalaron, borraron datos): se olvida
+create or replace function public.drop_push_subscriptions(p_endpoints text[])
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from public.push_subscriptions where endpoint = any (p_endpoints);
+$$;
+
+revoke execute on function public.claim_push_batch() from public, anon, authenticated;
+revoke execute on function public.drop_push_subscriptions(text[]) from public, anon, authenticated;
+grant execute on function public.claim_push_batch() to service_role;
+grant execute on function public.drop_push_subscriptions(text[]) to service_role;
+
+-- ---------- Armar avisos ----------
+
+create or replace function public.notif_name(p_user uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select display_name from public.profiles where id = p_user), 'Alguien');
+$$;
+
+-- Manda el mismo aviso a varios jugadores del viaje
+create or replace function public.notify_users(p_users uuid[], p_trip uuid, p_body text, p_tag text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_title text;
+begin
+  if current_setting('escabiarg.silent', true) = 'on' or p_users is null or cardinality(p_users) = 0 then
+    return;
+  end if;
+  select name into v_title from public.trips where id = p_trip;
+  if v_title is null then
+    return;
+  end if;
+  insert into public.notifications (user_id, trip_id, title, body, tag, url)
+  select distinct u, p_trip, v_title, left(p_body, 240), left(p_tag, 120), '#/viaje/' || p_trip
+  from unnest(p_users) as u
+  where u is not null;
+end;
+$$;
+
+-- Jugadores del viaje menos los que se indiquen
+create or replace function public.notify_trip(p_trip uuid, p_except uuid[], p_body text, p_tag text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform public.notify_users(
+    array(select user_id from public.trip_members
+          where trip_id = p_trip and not (user_id = any (coalesce(p_except, '{}')))),
+    p_trip, p_body, p_tag
+  );
+end;
+$$;
+
+revoke execute on function public.notif_name(uuid) from public, anon, authenticated;
+revoke execute on function public.notify_users(uuid[], uuid, text, text) from public, anon, authenticated;
+revoke execute on function public.notify_trip(uuid, uuid[], text, text) from public, anon, authenticated;
+
+-- Cada aviso nuevo se manda en vivo al dueño (para la app abierta)
+create or replace function public.broadcast_notification()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform public.rt_send('user:' || new.user_id, jsonb_build_object(
+    't', 'notifications', 'op', 'INSERT',
+    'row', jsonb_build_object('id', new.id, 'trip_id', new.trip_id, 'title', new.title,
+                              'body', new.body, 'tag', new.tag, 'url', new.url)
+  ));
+  return null;
+end;
+$$;
+
+drop trigger if exists broadcast_change on public.notifications;
+create trigger broadcast_change
+  after insert on public.notifications
+  for each row execute function public.broadcast_notification();
+
+-- ---------- Qué se avisa ----------
+
+-- Eventos: algo para votar, algo que te hicieron, y cuando se valida lo tuyo
+create or replace function public.notify_trip_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor text := public.notif_name(new.actor_id);
+  who text := public.notif_name(new.user_id);
+  what text := trim(coalesce(new.emoji, '') || ' ' || new.title);
+  pts text := case when new.points > 0 then '+' || new.points else new.points::text end || ' pts';
+begin
+  if tg_op = 'INSERT' then
+    -- A quien le hicieron algo
+    if new.user_id <> new.actor_id then
+      perform public.notify_users(array[new.user_id], new.trip_id,
+        case new.kind
+          when 'burn' then '🔥 ' || actor || ' te quemó: ' || what
+          when 'infraction' then '🚨 ' || actor || ' te marcó una infracción: ' || what
+          when 'quiebre' then '😵 ' || actor || ' dice que quebraste'
+          when 'duel' then '⚔️ ¡Ganaste el duelo! ' || what
+          when 'card' then '🃏 ' || actor || ' usó una carta con vos: ' || what
+          else what || ' (' || pts || ')'
+        end,
+        'evento-' || new.id);
+    end if;
+    -- Los que tienen que votar
+    if new.status = 'pending' then
+      perform public.notify_trip(new.trip_id, array[new.actor_id, new.user_id],
+        '🗳️ ' || case
+          when new.kind = 'drink' then who || ' se tomó ' || what
+          when new.kind = 'mission' then who || ' dice que cumplió la misión'
+          when new.kind = 'burn' then actor || ' quemó a ' || who
+          when new.kind = 'infraction' then actor || ' marcó a ' || who || ': ' || what
+          when new.kind = 'quiebre' then actor || ' dice que ' || who || ' quebró'
+          when new.kind = 'casino' then who || ' cargó lo que le quedó en el casino'
+          when new.kind = 'duel' then 'Terminó un duelo: ' || what
+          else who || ': ' || what
+        end || '. ¡Votá!',
+        'votar-' || new.trip_id);
+    end if;
+  elsif old.status = 'pending' and new.status <> 'pending' then
+    perform public.notify_users(array[new.user_id], new.trip_id,
+      case when new.status = 'approved'
+        then '✅ Se validó: ' || what || ' (' || pts || ')'
+        else '❌ No se validó: ' || what
+      end,
+      'evento-' || new.id);
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists notify_event on public.trip_events;
+create trigger notify_event
+  after insert or update of status on public.trip_events
+  for each row execute function public.notify_trip_event();
+
+-- Duelos
+create or replace function public.notify_duel()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  label text := case new.kind when 'fondo' then 'un fondo blanco' when 'shots' then 'un duelo de shots' else 'un duelo de baile' end;
+begin
+  if tg_op = 'INSERT' then
+    if new.status = 'invited' then
+      perform public.notify_users(array[new.opponent_id], new.trip_id,
+        '⚔️ ' || public.notif_name(new.challenger_id) || ' te desafió a ' || label || '. ¿Aceptás?',
+        'duelo-' || new.id);
+    end if;
+  elsif new.status is distinct from old.status then
+    if new.status = 'live' then
+      perform public.notify_users(array[new.challenger_id], new.trip_id,
+        '⚔️ ' || public.notif_name(new.opponent_id) || ' aceptó ' || label || '. ¡Arranca!',
+        'duelo-' || new.id);
+    elsif new.status = 'declined' then
+      perform public.notify_users(array[new.challenger_id], new.trip_id,
+        '🐔 ' || public.notif_name(new.opponent_id) || ' no aceptó ' || label,
+        'duelo-' || new.id);
+    elsif new.status = 'voting' then
+      perform public.notify_trip(new.trip_id, array[new.challenger_id, new.opponent_id],
+        '💃 ¿Quién bailó mejor? ' || public.notif_name(new.challenger_id) || ' vs '
+          || public.notif_name(new.opponent_id) || '. ¡Votá!',
+        'duelo-' || new.id);
+    end if;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists notify_duel on public.duels;
+create trigger notify_duel
+  after insert or update of status on public.duels
+  for each row execute function public.notify_duel();
+
+-- Hora boliche
+create or replace function public.notify_boliche()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.boliche_at is not null and old.boliche_at is null then
+    perform public.notify_trip(new.id, array[new.owner_id],
+      '🪩 ¡Arrancó la Hora boliche! Misiones, prendas y duelos de boliche.', 'boliche-' || new.id);
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists notify_boliche on public.trips;
+create trigger notify_boliche
+  after update of boliche_at on public.trips
+  for each row execute function public.notify_boliche();
+
+-- Casino
+create or replace function public.notify_casino()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    perform public.notify_trip(new.trip_id, array[new.started_by],
+      '🎰 ' || public.notif_name(new.started_by) || ' armó una salida al casino. ¡Sumate!',
+      'casino-' || new.id);
+  elsif new.status = 'reporting' and old.status = 'running' then
+    perform public.notify_users(
+      array(select user_id from public.casino_players
+            where session_id = new.id and busted_at is null),
+      new.trip_id,
+      '🎰 Se terminó el tiempo del casino: si te quedó plata, subí la foto.',
+      'casino-' || new.id);
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists notify_casino on public.casino_sessions;
+create trigger notify_casino
+  after insert or update of status on public.casino_sessions
+  for each row execute function public.notify_casino();
+
+-- Ruleta del chef / de la barra
+create or replace function public.notify_chef()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  label text := case new.kind when 'comida' then 'quién cocina' else 'quién prepara el trago' end;
+begin
+  if tg_op = 'INSERT' then
+    perform public.notify_trip(new.trip_id, array[new.started_by],
+      '🎡 ' || public.notif_name(new.started_by) || ' armó la ruleta de ' || label || '. ¡Metete!',
+      'chef-' || new.id);
+  elsif new.status is distinct from old.status then
+    if new.status = 'cooking' and new.chosen_user_id is not null then
+      perform public.notify_users(array[new.chosen_user_id], new.trip_id,
+        case new.kind when 'comida' then '🍳 ¡Te tocó cocinar!' else '🍹 ¡Te tocó preparar el trago!' end,
+        'chef-' || new.id);
+    elsif new.status = 'voting' then
+      perform public.notify_trip(new.trip_id, array[new.chosen_user_id],
+        '🍽️ ¿Estuvo bueno lo de ' || public.notif_name(new.chosen_user_id) || '? ¡Votá!',
+        'chef-' || new.id);
+    end if;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists notify_chef on public.chef_spins;
+create trigger notify_chef
+  after insert or update of status on public.chef_spins
+  for each row execute function public.notify_chef();
+
+-- "Esta misión es mala": votación para cambiarla
+create or replace function public.notify_challenge()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    perform public.notify_trip(new.trip_id, array[new.started_by, new.target_user_id],
+      '🗳️ ' || public.notif_name(new.started_by) || ' dice que la misión de '
+        || public.notif_name(new.target_user_id) || ' es mala. ¡Votá!',
+      'reto-' || new.id);
+  elsif new.phase = 'vote_option' and old.phase is distinct from 'vote_option' then
+    perform public.notify_trip(new.trip_id, array[new.target_user_id],
+      '🗳️ Elegí la misión nueva de ' || public.notif_name(new.target_user_id),
+      'reto-' || new.id);
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists notify_challenge on public.mission_challenges;
+create trigger notify_challenge
+  after insert or update of phase on public.mission_challenges
+  for each row execute function public.notify_challenge();
+
+-- Te sumaron a un viaje
+create or replace function public.notify_member()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  owner uuid;
+begin
+  select owner_id into owner from public.trips where id = new.trip_id;
+  if owner is not null and new.user_id <> owner then
+    perform public.notify_users(array[new.user_id], new.trip_id,
+      '🎒 ' || public.notif_name(owner) || ' te sumó al plan. ¡Entrá!',
+      'sumado-' || new.trip_id);
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists notify_member on public.trip_members;
+create trigger notify_member
+  after insert on public.trip_members
+  for each row execute function public.notify_member();
+
+revoke execute on function public.notify_trip_event(), public.notify_duel(), public.notify_boliche(),
+  public.notify_casino(), public.notify_chef(), public.notify_challenge(), public.notify_member(),
+  public.broadcast_notification()
+  from public, anon, authenticated;
+
 commit;

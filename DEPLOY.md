@@ -32,7 +32,8 @@ Necesitás:
 3. Tocá **Run**. Tiene que terminar sin errores ("Success").
 4. Verificá:
    - **Table Editor**: aparecen tablas como `profiles`, `trips`, `trip_events`, `duels`…
-   - **Storage**: aparece el bucket **`trip-photos`** (privado). Ahí van a quedar las fotos.
+   - **Storage**: aparecen los buckets **`trip-photos`** (privado: fotos y videos de los
+     viajes) y **`avatars`** (fotos de perfil).
 
 > **¿Ya habías corrido alguna migración antes?** No uses `setup_completo.sql`
 > (fallaría porque las tablas ya existen). Corré, en orden, solo los archivos de
@@ -53,6 +54,8 @@ Necesitás:
 > | 11 | `20261117000000_videos.sql` |
 > | 12 | `20261118000000_casino_quede_en_0.sql` |
 > | 13 | `20261119000000_terminos.sql` |
+> | 14 | `20261120000000_foto_de_perfil.sql` |
+> | 15 | `20261121000000_notificaciones.sql` |
 
 ### 2.b Tiempo real
 
@@ -63,6 +66,59 @@ viaje (solo sus miembros).
 
 > Si Realtime no anda por algún motivo, la app no se rompe: vuelve a refrescar sola
 > cada unos segundos, como antes.
+
+### 2.c Notificaciones
+
+Cada jugador las activa desde el cartel que le aparece en el viaje o desde
+**Perfil → Notificaciones** (el navegador le pide permiso). Avisan cuando te desafían,
+te queman, te marcan una infracción, hay algo para votar, arranca la Hora boliche, se
+abre el casino, te sumaron a un plan, etc.
+
+Hay dos niveles:
+
+- **Sin configurar nada** (alcanza con la migración 15): llegan mientras la app siga
+  abierta, aunque estés en otra pestaña u otra app. Si el celular cierra el navegador
+  o se bloquea un rato largo, dejan de llegar.
+- **Web Push** (recomendado): llegan aunque el navegador esté cerrado o el celular
+  bloqueado. Hay que hacer esto **una sola vez**:
+
+1. En tu compu, generá las claves (son tuyas, no las compartas):
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+   Te muestra una **Public Key** y una **Private Key**.
+2. Instalá la función `push` (está en `supabase/functions/push/`). Con la CLI de
+   Supabase, desde la carpeta del repo (el *project ref* está en **Project Settings →
+   General**):
+   ```bash
+   npx supabase login
+   ```
+   ```bash
+   npx supabase link --project-ref TU_PROJECT_REF
+   ```
+   ```bash
+   npx supabase secrets set VAPID_PUBLIC_KEY=LA_PUBLIC_KEY VAPID_PRIVATE_KEY=LA_PRIVATE_KEY VAPID_SUBJECT=https://escabiarg.netlify.app
+   ```
+   ```bash
+   npx supabase functions deploy push --no-verify-jwt
+   ```
+   Si la CLI se queja de que falta `config.toml`, corré antes `npx supabase init`.
+   (`--no-verify-jwt` es a propósito: la función revisa sola que quien la llama tenga
+   sesión iniciada, así anda con las claves nuevas de Supabase.)
+
+   > **Sin la CLI:** en Supabase → **Edge Functions → Secrets** cargá las tres
+   > variables (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` = la URL de tu
+   > sitio). Después **Edge Functions → Deploy a new function → Via Editor**, nombrala
+   > `push` y creá los tres archivos `index.ts`, `handler.ts` y `webpush.ts` con el
+   > contenido de `supabase/functions/push/`. En la configuración de la función
+   > desactivá **Enforce JWT verification** (o "Verify JWT").
+3. Listo: no hace falta tocar Netlify. En la app, **Perfil → Notificaciones** tiene que
+   decir *"te avisamos aunque cierres el navegador"* (si ya las tenías activadas,
+   desactivalas y activalas de nuevo).
+
+> **iPhone:** Apple solo deja mandar notificaciones a sitios agregados a la pantalla de
+> inicio (iOS 16.4 o más nuevo). En Safari: **Compartir → Agregar a inicio**, abrir
+> EscabiARG desde ese ícono y activarlas desde ahí. La app ya les explica esto.
 
 ## 3. Configurar el login
 
@@ -318,6 +374,10 @@ Hacelo desde el celular, que es donde se va a usar:
 8. Con la segunda cuenta entrá al viaje → **Pendientes** → mirá la foto → **Vale**.
    La primera cuenta suma los puntos.
 9. En Supabase → **Storage → trip-photos** tiene que aparecer la foto.
+10. **Perfil** → tocá tu círculo → sacate una foto: la otra cuenta la tiene que ver al
+    toque en el viaje.
+11. Con la segunda cuenta activá las notificaciones, mandala a otra app o bloqueá el
+    celular, y con la primera desafiala a un duelo: le tiene que llegar el aviso.
 
 Si todo eso anduvo, ya está online. 🍻
 
@@ -346,6 +406,10 @@ Si todo eso anduvo, ya está online. 🍻
 | La cámara no abre | Permiso denegado | En el navegador: permisos del sitio → Cámara → Permitir. En iPhone: Ajustes → Safari → Cámara |
 | Después de confirmar el mail te manda a `localhost` | Site URL sin configurar | Paso 6 |
 | Las cuentas regresivas se ven corridas | Hora del celular muy desfasada | La app se sincroniza con el servidor; reiniciá la app |
+| "Las fotos de perfil todavía no están activadas" | Falta la migración 14 | Corré `20261120000000_foto_de_perfil.sql` |
+| Las notificaciones solo llegan con la app abierta | Falta Web Push | Paso 2.c (claves VAPID + función `push`). En **Edge Functions → push → Logs** se ven los envíos |
+| En iPhone no aparece el botón de notificaciones | Safari no las permite fuera de la pantalla de inicio | Compartir → Agregar a inicio y abrirla desde el ícono (iOS 16.4+) |
+| "Las bloqueaste en este navegador" | Se tocó "Bloquear" en el permiso | Candado 🔒 al lado de la dirección → Notificaciones → Permitir |
 | Lo que hacen los demás tarda unos segundos en aparecer (no es instantáneo) | Falta la migración de tiempo real, o Realtime está caído | Corré `20261110000000_tiempo_real.sql` (paso 2). En **Realtime → Inspector** podés ver si llegan mensajes a `trip:…` |
 
 ### Error 500 al registrarse
