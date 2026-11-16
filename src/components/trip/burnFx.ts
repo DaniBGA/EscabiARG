@@ -176,7 +176,8 @@ type Options = {
 
 export function startBurnFx(o: Options): () => void {
   const cardDpr = Math.min(window.devicePixelRatio || 1, 2)
-  const fxDpr = Math.min(window.devicePixelRatio || 1, 1.5)
+  // Resolución del fuego (baja sola en celulares lentos: son llamas difusas, no se nota)
+  let fxDpr = Math.min(window.devicePixelRatio || 1, 1.5)
   const PW = Math.round(CARD_W * cardDpr)
   const PH = Math.round(CARD_H * cardDpr)
 
@@ -241,18 +242,32 @@ export function startBurnFx(o: Options): () => void {
 
   const back: Particle[] = []
   const front: Particle[] = []
+  /**
+   * Calidad (1 = todo el fuego). En celulares lentos baja sola: si los cuadros tardan
+   * mucho, se largan menos partículas hasta que la animación vuelva a ir fluida.
+   */
+  let quality = 1
+  let slowFrames = 0
   const add = (list: Particle[], p: Omit<Particle, 'age' | 'seed' | 'rot' | 'vr'> & Partial<Particle>) => {
-    if (list.length > 1400) return
+    if (list.length > 1400 * quality) return
     list.push({ age: 0, seed: Math.random() * 100, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 6, ...p })
+  }
+
+  // Dónde está la foto en la pantalla: se mide una vez por cuadro (medir es caro)
+  let place = { cx: 0, cy: 0, scale: 1 }
+  const measure = () => {
+    const r = o.card.getBoundingClientRect()
+    const host = o.front.getBoundingClientRect()
+    place = {
+      cx: r.left + r.width / 2 - host.left,
+      cy: r.top + r.height / 2 - host.top,
+      scale: o.card.offsetWidth ? o.card.offsetWidth / CARD_W : 1,
+    }
   }
 
   /** De un punto de la foto (en px lógicos) a la pantalla, teniendo en cuenta que está girada */
   const cardToScreen = (lx: number, ly: number) => {
-    const r = o.card.getBoundingClientRect()
-    const host = o.front.getBoundingClientRect()
-    const cx = r.left + r.width / 2 - host.left
-    const cy = r.top + r.height / 2 - host.top
-    const scale = o.card.offsetWidth ? (o.card.offsetWidth / CARD_W) : 1
+    const { cx, cy, scale } = place
     const a = (-4 * Math.PI) / 180
     const dx = (lx - CARD_W / 2) * scale
     const dy = (ly - CARD_H / 2) * scale
@@ -270,8 +285,21 @@ export function startBurnFx(o: Options): () => void {
   const T = BURN_TIMES
 
   const frame = (now: number) => {
-    const dt = Math.min(0.05, (now - last) / 1000)
+    const elapsed = now - last
+    const dt = Math.min(0.05, elapsed / 1000)
     last = now
+    // Más de ~28 ms por cuadro varias veces seguidas: menos fuego
+    if (elapsed > 28) slowFrames++
+    else slowFrames = Math.max(0, slowFrames - 1)
+    if (slowFrames > 6) {
+      slowFrames = 0
+      if (quality > 0.3) quality = Math.max(0.3, quality * 0.8)
+      else if (fxDpr > 0.6) {
+        fxDpr = Math.max(0.6, fxDpr * 0.75)
+        resize()
+      }
+    }
+    measure()
     const t = (now - start) / 1000
     const scale = Math.min(1.25, Math.max(0.7, H / 800))
 
@@ -284,7 +312,7 @@ export function startBurnFx(o: Options): () => void {
 
     // --- Pared de fuego ---
     const intensity = Math.min(1, t / 0.7) * (t > T.total - 0.8 ? Math.max(0, (T.total - t) / 0.8) : 1)
-    const count = Math.round(intensity * (W / 13) * (dt * 60))
+    const count = Math.round(intensity * (W / 13) * (dt * 60) * quality)
     for (let k = 0; k < count; k++) {
       const big = Math.random() < 0.35
       add(back, {
@@ -329,7 +357,7 @@ export function startBurnFx(o: Options): () => void {
       const sway = Math.sin(t * 9) * 18 * (1 - p)
       tongue = { x: W / 2 + (target.x - W / 2) * e + sway, y: H + 10 + (target.y - (H + 10)) * e }
       // La punta y un cuerpo que la sigue desde abajo
-      for (let k = 0; k < 16; k++) {
+      for (let k = 0; k < 16 * quality; k++) {
         const back = Math.random() * Math.random() * 160
         add(front, {
           kind: 'fire',
@@ -409,7 +437,7 @@ export function startBurnFx(o: Options): () => void {
       cg.putImageData(out, 0, 0)
 
       // Llamitas y cenizas que salen del borde que se está quemando
-      for (let k = 0; k < 90; k++) {
+      for (let k = 0; k < 90 * quality; k++) {
         const i = (Math.random() * burnMap.length) | 0
         if (src[i * 4 + 3] === 0) continue
         const d = th - burnMap[i]

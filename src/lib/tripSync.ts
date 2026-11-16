@@ -51,6 +51,8 @@ const TABLES: Record<string, TableSpec> = {
 /** Cambios que no se pueden aplicar sueltos: hay que volver a pedir el viaje */
 export function needsReload(change: LiveChange): boolean {
   if (change.t === 'trips') return change.op === 'DELETE'
+  // Los avisos no cambian el viaje (los muestra el navegador, ver notifications.ts)
+  if (change.t === 'notifications') return false
   return !(change.t in TABLES)
 }
 

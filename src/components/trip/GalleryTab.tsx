@@ -37,9 +37,13 @@ const matches = (f: Filter, kind: string) =>
 type Photo = { path: string; event: TripEvent }
 
 /** Todas las fotos del viaje: tragos, quebradas y pruebas de misiones */
+const GALLERY_PAGE = 60
+
 export default function GalleryTab({ events, members, userId, today, tripName }: Props) {
   const api = useApi()
   const [filter, setFilter] = useState<Filter>('all')
+  /** Con cientos de fotos se muestran de a tandas (bajar y dibujar todas traba el celu) */
+  const [limit, setLimit] = useState(GALLERY_PAGE)
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [open, setOpen] = useState<Photo | null>(null)
   /** "3/20" mientras baja las fotos */
@@ -49,7 +53,9 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
 
   const photos: Photo[] = events.flatMap((e) => e.photo_paths.map((path) => ({ path, event: e })))
   const shown = photos.filter((p) => matches(filter, p.event.kind))
-  const pathsKey = photos.map((p) => p.path).join('|')
+  const visible = shown.slice(0, limit)
+  // Solo se firman las que se ven (para guardar todas se piden aparte, ver collect)
+  const pathsKey = visible.map((p) => p.path).join('|')
 
   useEffect(() => {
     if (!pathsKey) return
@@ -111,7 +117,10 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
             type="button"
             className="chip-btn"
             aria-pressed={filter === f.key}
-            onClick={() => setFilter(f.key)}
+            onClick={() => {
+              setFilter(f.key)
+              setLimit(GALLERY_PAGE)
+            }}
           >
             {f.label} · {count(f.key)}
           </button>
@@ -139,7 +148,7 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
         <p className="muted center hand">Todavía no hay fotos acá. ¡Que empiece la joda!</p>
       ) : (
         <ul className="gallery-grid">
-          {shown.map((p) => (
+          {visible.map((p) => (
             <li key={p.path}>
               <button type="button" className="gallery-item" onClick={() => setOpen(p)} aria-label={`${name(p.event.user_id)}: ${p.event.title}`}>
                 {urls[p.path] ? (
@@ -157,6 +166,12 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
             </li>
           ))}
         </ul>
+      )}
+
+      {shown.length > visible.length && (
+        <button type="button" className="btn btn--ghost btn--block gallery-more" onClick={() => setLimit((n) => n + GALLERY_PAGE)}>
+          Ver más fotos ({shown.length - visible.length})
+        </button>
       )}
 
       <Sheet open={open !== null} title={open && isVideoPath(open.path) ? 'Video' : 'Foto'} onClose={() => setOpen(null)}>

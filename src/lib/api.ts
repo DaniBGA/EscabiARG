@@ -282,6 +282,8 @@ export type Api = {
   pushPublicKey(): Promise<string | null>
   savePushSubscription(endpoint: string, p256dh: string, auth: string): Promise<void>
   deletePushSubscription(endpoint: string): Promise<void>
+  /** Hora (del servidor) del último cambio de la sala; null si no se puede saber */
+  tripPulse(tripId: string): Promise<string | null>
   /** Versión de los términos que aceptó (0 = ninguna) */
   getTermsVersion(userId: string): Promise<number>
   acceptTerms(userId: string, version: number): Promise<void>
@@ -537,6 +539,19 @@ function kickPush() {
       pushPausedUntil = Date.now() + 5 * 60_000
     }
   }, 500)
+}
+
+// Si la base no tiene la función (migración sin correr), no se vuelve a preguntar
+let hasPulse = true
+
+async function tripPulse(tripId: string): Promise<string | null> {
+  if (!hasPulse) return null
+  const { data, error } = await requireSupabase().rpc('trip_pulse', { p_trip: tripId })
+  if (error) {
+    if (error.code === 'PGRST202' || /could not find the function/i.test(error.message)) hasPulse = false
+    return null
+  }
+  return (data as string | null) ?? null
 }
 
 async function savePushSubscription(endpoint: string, p256dh: string, auth: string) {
@@ -800,6 +815,7 @@ export const supabaseApi: Api = {
   pushPublicKey,
   savePushSubscription,
   deletePushSubscription,
+  tripPulse,
   getTermsVersion,
   acceptTerms,
   updateDisplayName,

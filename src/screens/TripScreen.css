@@ -2547,3 +2547,8 @@
 /* ---------- Casino: "Quedé en 0" ---------- */
 .joined-list li.is-busted { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255, 139, 118, 0.7); }
 .casino-bust { margin-top: 10px; }
+
+.pending-more,
+.gallery-more {
+  margin-top: 12px;
+}

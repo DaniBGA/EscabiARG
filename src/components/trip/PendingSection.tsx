@@ -9,6 +9,9 @@ import { MediaFull, MediaThumb } from './Media'
 import ChallengeCard from './ChallengeCard'
 import QuiebreGuy from './QuiebreGuy'
 
+/** Fotos para validar que se muestran de entrada (con muchas, el celu se traba) */
+const PENDING_PAGE = 6
+
 type Props = {
   detail: TripDetail
   me: string
@@ -170,7 +173,12 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
   }
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [viewing, setViewing] = useState<string | null>(null)
-  const items = myPendingItems(detail, me, now)
+  const [limit, setLimit] = useState(PENDING_PAGE)
+  const all = myPendingItems(detail, me, now)
+  // Lo que no es para validar siempre se ve; las fotos, de a poco
+  let shownEvents = 0
+  const items = all.filter((i) => i.type !== 'event' || ++shownEvents <= limit)
+  const hiddenEvents = all.length - items.length
   const pathsKey = items
     .flatMap((i) =>
       i.type === 'event' ? i.event.photo_paths : i.type === 'chefVote' && i.spin.photo_path ? [i.spin.photo_path] : [],
@@ -194,7 +202,7 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
   return (
     <section className="pending" aria-labelledby="pending-title">
       <h2 id="pending-title" className="pending-title">
-        <span className="sign">Pendientes</span> <span className="pending-count">{items.length}</span>
+        <span className="sign">Pendientes</span> <span className="pending-count">{all.length}</span>
       </h2>
       <p className="muted small">Mirá las fotos y decí si valen. Los puntos cuentan cuando los valida la mayoría.</p>
       <div className="pending-list">
@@ -302,6 +310,11 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
           ),
         )}
       </div>
+      {hiddenEvents > 0 && (
+        <button type="button" className="btn btn--ghost btn--block pending-more" onClick={() => setLimit((n) => n + PENDING_PAGE * 2)}>
+          Ver {Math.min(hiddenEvents, PENDING_PAGE * 2)} más (quedan {hiddenEvents} para validar)
+        </button>
+      )}
       {error && <p className="notice notice--error" role="alert">{error}</p>}
 
       <Sheet open={viewing !== null} title={viewing && isVideoPath(viewing) ? 'Video' : 'Foto'} onClose={() => setViewing(null)}>

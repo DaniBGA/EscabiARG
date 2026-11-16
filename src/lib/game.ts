@@ -87,19 +87,18 @@ export function addDays(day: string, n: number) {
   return d.toISOString().slice(0, 10)
 }
 
+// Armar un formateador de fechas es caro: se crean una sola vez
+const DAY_FORMAT = new Intl.DateTimeFormat('es-AR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+const TIME_FORMAT = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+
 export function formatDay(day: string, today: string) {
   if (day === today) return 'Hoy'
   if (day === addDays(today, -1)) return 'Ayer'
-  return new Date(`${day}T12:00:00Z`).toLocaleDateString('es-AR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  })
+  return DAY_FORMAT.format(new Date(`${day}T12:00:00Z`))
 }
 
 export function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return TIME_FORMAT.format(new Date(iso))
 }
 
 // ---------- Puntajes ----------

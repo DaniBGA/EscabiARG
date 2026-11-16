@@ -56,6 +56,11 @@ Necesitás:
 > | 13 | `20261119000000_terminos.sql` |
 > | 14 | `20261120000000_foto_de_perfil.sql` |
 > | 15 | `20261121000000_notificaciones.sql` |
+> | 16 | `20261122000000_rendimiento.sql` ⚠️ ver nota |
+>
+> ⚠️ **Migración 16:** corréla **después** de que Netlify publique la versión de la
+> app que la acompaña (la de "rendimiento con muchos jugadores"). Si la corrés antes,
+> los celulares con la app vieja recargan el viaje entero con cada aviso.
 
 ### 2.b Tiempo real
 
@@ -66,6 +71,14 @@ viaje (solo sus miembros).
 
 > Si Realtime no anda por algún motivo, la app no se rompe: vuelve a refrescar sola
 > cada unos segundos, como antes.
+
+> **Límites de Realtime (plan gratis):** 100 mensajes por segundo y 200 conexiones a la
+> vez, sumando **todas** las salas del proyecto. Cada cambio en una sala (un trago, un
+> voto) es un mensaje. En la prueba de carga, 12 jugadores a ritmo de previa movida
+> no llegaron al límite; recién se pasa con un ritmo exagerado (más de 10 jugadas por
+> segundo en una sola sala) o con muchas salas a la vez. Si Supabase corta por pasarse,
+> la app se da cuenta sola (cada 15 s pregunta la hora del último cambio de la sala) y
+> se pone al día. Si la app crece mucho, el plan Pro sube el límite a 500 por segundo.
 
 ### 2.c Notificaciones
 
@@ -78,7 +91,9 @@ Hay dos niveles:
 
 - **Sin configurar nada** (alcanza con la migración 15): llegan mientras la app siga
   abierta, aunque estés en otra pestaña u otra app. Si el celular cierra el navegador
-  o se bloquea un rato largo, dejan de llegar.
+  o se bloquea un rato largo, dejan de llegar. Los avisos para toda la sala (ej:
+  "¡Votá!") llegan si la app quedó abierta en ese viaje; los personales (te desafiaron,
+  te quemaron) llegan desde cualquier pantalla.
 - **Web Push** (recomendado): llegan aunque el navegador esté cerrado o el celular
   bloqueado. Hay que hacer esto **una sola vez**:
 

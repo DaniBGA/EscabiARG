@@ -1045,6 +1045,10 @@ export const demoApi: Api = {
   },
   async savePushSubscription() {},
   async deletePushSubscription() {},
+  // En la demo todo pasa en este celular: no hay cambios que perderse
+  async tripPulse() {
+    return null
+  },
 
   async setAvatar(_userId, photo) {
     await wait()

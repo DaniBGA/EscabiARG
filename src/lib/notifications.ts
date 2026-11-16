@@ -161,6 +161,22 @@ export async function showNotice(notice: LocalNotice) {
   new Notification(notice.title, { body: notice.body, tag: notice.tag, icon: '/icons/icon-192.png' })
 }
 
+/**
+ * Llegó un aviso en vivo (por tu canal o por el de la sala, con la lista de a quiénes
+ * les toca). Se muestra solo si la app está en segundo plano y no llega por Web Push.
+ */
+export function deliverNotice(row: Record<string, unknown>, userId: string) {
+  const users = row.users
+  if (Array.isArray(users) && !users.includes(userId)) return
+  if (!notifEnabled(userId) || isPushActive() || document.visibilityState === 'visible') return
+  void showNotice({
+    title: String(row.title ?? 'EscabiARG'),
+    body: String(row.body ?? ''),
+    tag: String(row.tag ?? 'escabiarg'),
+    url: String(row.url ?? ''),
+  })
+}
+
 /** Aviso de prueba para ver que anda */
 export function testNotice(name: string) {
   return showNotice({
