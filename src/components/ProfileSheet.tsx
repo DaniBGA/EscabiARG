@@ -76,11 +76,23 @@ export default function ProfileSheet({ open, onClose, me, user, onChange, onShow
     }
   }
 
+  // Confirmación dentro de la app (window.confirm a veces está bloqueado y el botón
+  // parecía no hacer nada)
+  const [confirmOut, setConfirmOut] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const signOut = async () => {
-    if (user.isGuest && !window.confirm('Sos invitado: si cerrás sesión vas a perder tus amigos y viajes. ¿Seguro?')) {
+    if (user.isGuest && !confirmOut) {
+      setConfirmOut(true)
       return
     }
-    await auth.signOut()
+    setSigningOut(true)
+    setError(null)
+    try {
+      await auth.signOut()
+    } catch (err) {
+      setError(friendlyError(err))
+      setSigningOut(false)
+    }
   }
 
   const unchanged = name.trim() === me.display_name || !name.trim()
@@ -92,6 +104,7 @@ export default function ProfileSheet({ open, onClose, me, user, onChange, onShow
       onClose={() => {
         setName(me.display_name)
         setError(null)
+        setConfirmOut(false)
         onClose()
       }}
     >
@@ -177,9 +190,26 @@ export default function ProfileSheet({ open, onClose, me, user, onChange, onShow
         </div>
       </Sheet>
 
-      <button type="button" className="btn btn--danger btn--block profile-signout" onClick={signOut}>
-        {user.isDemo ? 'Salir de la demo' : 'Cerrar sesión'}
+      {confirmOut && (
+        <p className="notice notice--error profile-signout-warn" role="alert">
+          Sos invitado: si cerrás sesión <strong>perdés tus amigos y viajes</strong> (no hay forma de volver a
+          entrar a esta cuenta).
+        </p>
+      )}
+      <button type="button" className="btn btn--danger btn--block profile-signout" onClick={signOut} disabled={signingOut}>
+        {signingOut
+          ? 'Cerrando sesión…'
+          : user.isDemo
+            ? 'Salir de la demo'
+            : confirmOut
+              ? 'Sí, cerrar sesión igual'
+              : 'Cerrar sesión'}
       </button>
+      {confirmOut && !signingOut && (
+        <button type="button" className="btn btn--ghost btn--block profile-signout-cancel" onClick={() => setConfirmOut(false)}>
+          Mejor no
+        </button>
+      )}
       {user.isDemo && (
         <p className="profile-demo-note">Al salir se borran los datos de prueba.</p>
       )}
