@@ -25,10 +25,13 @@ export const TERMS: TermsSection[] = [
     ],
   },
   {
-    title: '3. El registro de tragos es voluntario',
+    title: '3. Vos decidís: el registro de tragos es voluntario',
     items: [
       'Cargar lo que tomás es opcional y tiene una finalidad informativa y de juego entre amigos.',
+      'EscabiARG no ofrece ninguna recompensa real por tomar: no hay dinero, premios, descuentos ni beneficios de ningún tipo. Los puntos solo sirven para el juego entre amigos.',
+      'Todo lo que pasa en la app lo deciden los propios usuarios: si toman o no, cuánto, y si proponen o aceptan un duelo, un reto o una prenda. El límite y hasta dónde llegar lo define cada uno.',
       'Nadie está obligado a tomar alcohol para participar: misiones, prendas, ruletas y duelos se pueden rechazar o abandonar en cualquier momento, sin consecuencias.',
+      'Podés dejar de tomar, bajarte de un duelo o dejar de jugar cuando quieras. Cada decisión que tomes dentro o fuera de la app es tu responsabilidad.',
       'Tomá con moderación, hidratate y nunca tomes si vas a manejar. Si alguien del grupo no está bien, priorizá su cuidado antes que el juego.',
     ],
   },
