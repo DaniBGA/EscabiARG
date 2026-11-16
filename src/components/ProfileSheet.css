@@ -133,3 +133,15 @@
   opacity: 0.8;
   font-size: 0.9rem;
 }
+
+.profile-signout-warn {
+  margin-top: 22px;
+}
+
+.profile-signout-warn + .profile-signout {
+  margin-top: 10px;
+}
+
+.profile-signout-cancel {
+  margin-top: 8px;
+}

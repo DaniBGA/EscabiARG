@@ -1,10 +1,28 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { AuthContext, type AppUser, type AuthState } from '../lib/authContext'
 import { DEMO_USER_ID, resetDemoData } from '../lib/demoApi'
+import { supabaseApi } from '../lib/api'
+import { releasePush } from '../lib/notifications'
 import { isDemoEnabled, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 
 const DEMO_FLAG = 'escabiarg:demo'
+
+/** Espera una promesa, pero no más de `ms` (si se cuelga, se sigue igual) */
+function within<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'> {
+  return Promise.race([promise, new Promise<'timeout'>((r) => window.setTimeout(() => r('timeout'), ms))])
+}
+
+/** Borra la sesión guardada en este navegador (las claves sb-…-auth-token de Supabase) */
+function forgetStoredSession() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (/^sb-.*-auth-token/.test(key)) localStorage.removeItem(key)
+    }
+  } catch {
+    // sin acceso a localStorage no hay nada guardado que borrar
+  }
+}
 
 /** Lee si el modo demo está activo (o se pidió con ?demo en la URL) */
 function initialDemo(): boolean {
@@ -50,7 +68,17 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       setDemo(false)
       return
     }
-    await supabase?.auth.signOut()
+    if (!supabase) return
+    // 1. Que a este celular no le lleguen más los avisos de esta cuenta
+    await within(releasePush(supabaseApi), 2500).catch(() => undefined)
+    // 2. Cerrar la sesión en el servidor y en el celular
+    const result = await within(supabase.auth.signOut(), 6000).catch((err: unknown) => ({ error: err }))
+    if (result !== 'timeout' && !result.error) return
+    // 3. Si falló (sin internet, servidor caído, se colgó): se cierra igual en este celular.
+    //    Se recarga para que no quede nada de la sesión vieja en memoria.
+    await within(supabase.auth.signOut({ scope: 'local' }), 2500).catch(() => undefined)
+    forgetStoredSession()
+    window.location.replace(window.location.pathname)
   }, [demo])
 
   const sessionUserId = session?.user.id

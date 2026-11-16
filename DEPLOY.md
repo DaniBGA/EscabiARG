@@ -37,7 +37,11 @@ Necesitás:
 
 > **¿Ya habías corrido alguna migración antes?** No uses `setup_completo.sql`
 > (fallaría porque las tablas ya existen). Corré, en orden, solo los archivos de
-> `supabase/migrations/` que te falten:
+> `supabase/migrations/` que te falten.
+>
+> **¿Cuáles te faltan?** Pegá [`supabase/chequeo_migraciones.sql`](supabase/chequeo_migraciones.sql)
+> en el SQL Editor y tocá Run: te lista cada migración con ✅ corrida o ❌ FALTA (solo lee,
+> no cambia nada).
 >
 > | Orden | Archivo |
 > | --- | --- |
@@ -425,6 +429,7 @@ Si todo eso anduvo, ya está online. 🍻
 | Las notificaciones solo llegan con la app abierta | Falta Web Push | Paso 2.c (claves VAPID + función `push`). En **Edge Functions → push → Logs** se ven los envíos |
 | En iPhone no aparece el botón de notificaciones | Safari no las permite fuera de la pantalla de inicio | Compartir → Agregar a inicio y abrirla desde el ícono (iOS 16.4+) |
 | "Las bloqueaste en este navegador" | Se tocó "Bloquear" en el permiso | Candado 🔒 al lado de la dirección → Notificaciones → Permitir |
+| En la consola: `column ... avatar_url does not exist` o `terms_version does not exist` (error 400 / 42703) | Faltan migraciones (14 y 13) | Corré `supabase/chequeo_migraciones.sql` para ver cuáles faltan y corrélas en orden |
 | Lo que hacen los demás tarda unos segundos en aparecer (no es instantáneo) | Falta la migración de tiempo real, o Realtime está caído | Corré `20261110000000_tiempo_real.sql` (paso 2). En **Realtime → Inspector** podés ver si llegan mensajes a `trip:…` |
 
 ### Error 500 al registrarse

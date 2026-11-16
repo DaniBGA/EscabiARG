@@ -368,23 +368,30 @@ function check<T>(result: { data: T; error: { message: string } | null }): T {
 
 // La columna de la foto llega con una migración: si todavía no está, se pide sin ella
 let hasAvatarColumn = true
-const avatarCol = () => (hasAvatarColumn ? ', avatar_url' : '')
+const avatarCol = (withAvatar: boolean) => (withAvatar ? ', avatar_url' : '')
 const missingAvatar = (message: string) => /avatar_url|set_avatar/i.test(message)
 
-/** Hace la consulta con la foto; si la base no la tiene todavía, la repite sin ella */
-async function withAvatarFallback<T>(query: () => PromiseLike<{ data: T; error: { message: string } | null }>) {
-  const first = await query()
-  if (first.error && hasAvatarColumn && missingAvatar(first.error.message)) {
+/**
+ * Hace la consulta con la foto; si la base no la tiene todavía, la repite sin ella.
+ * Se fija en lo que usó ESTA consulta (salen varias a la vez: si otra ya se dio
+ * cuenta de que falta la columna, esta igual tiene que reintentar).
+ */
+async function withAvatarFallback<T>(
+  query: (withAvatar: boolean) => PromiseLike<{ data: T; error: { message: string } | null }>,
+) {
+  const used = hasAvatarColumn
+  const first = await query(used)
+  if (first.error && used && missingAvatar(first.error.message)) {
     hasAvatarColumn = false
-    return check(await query())
+    return check(await query(false))
   }
   return check(first)
 }
 
 async function getMyProfile(userId: string): Promise<Profile> {
   const sb = requireSupabase()
-  const profile = await withAvatarFallback(() =>
-    sb.from('profiles').select(`id, display_name, friend_code${avatarCol()}`).eq('id', userId).single(),
+  const profile = await withAvatarFallback((a) =>
+    sb.from('profiles').select(`id, display_name, friend_code${avatarCol(a)}`).eq('id', userId).single(),
   )
   return profile as unknown as Profile
 }
@@ -453,10 +460,10 @@ async function updateDisplayName(userId: string, displayName: string): Promise<v
 
 async function listFriends(userId: string): Promise<Profile[]> {
   const sb = requireSupabase()
-  const rows = (await withAvatarFallback(() =>
+  const rows = (await withAvatarFallback((a) =>
     sb
       .from('friendships')
-      .select(`friend:profiles!friendships_friend_id_fkey(id, display_name, friend_code${avatarCol()})`)
+      .select(`friend:profiles!friendships_friend_id_fkey(id, display_name, friend_code${avatarCol(a)})`)
       .eq('user_id', userId),
   )) as unknown as { friend: Profile | null }[]
 
@@ -479,11 +486,11 @@ async function removeFriend(friendId: string): Promise<void> {
 
 async function listTrips(): Promise<Trip[]> {
   const sb = requireSupabase()
-  const rows = await withAvatarFallback(() =>
+  const rows = await withAvatarFallback((a) =>
     sb
       .from('trips')
       .select(
-        `id, owner_id, name, trip_date, place, created_at, kind, day_cutoff_hour, members:trip_members(user_id, role, profile:profiles(id, display_name${avatarCol()}))`,
+        `id, owner_id, name, trip_date, place, created_at, kind, day_cutoff_hour, members:trip_members(user_id, role, profile:profiles(id, display_name${avatarCol(a)}))`,
       )
       .order('created_at', { ascending: false }),
   )

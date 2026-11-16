@@ -148,6 +148,21 @@ export async function disableNotifications(api: Api, userId: string) {
   }
 }
 
+/**
+ * Al cerrar sesión: este celular deja de recibir los avisos de esa cuenta (si otra
+ * persona entra después, no le llegan los tuyos). Tu preferencia queda guardada:
+ * si volvés a entrar con la misma cuenta, se reactivan solas.
+ */
+export async function releasePush(api: Api) {
+  pushActive = false
+  if (!('serviceWorker' in navigator)) return
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => undefined)
+  const sub = await reg?.pushManager?.getSubscription().catch(() => null)
+  if (!sub) return
+  await api.deletePushSubscription(sub.endpoint).catch(() => undefined)
+  await sub.unsubscribe().catch(() => undefined)
+}
+
 // ---------- Avisos locales ----------
 
 export async function showNotice(notice: LocalNotice) {
