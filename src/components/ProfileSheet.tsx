@@ -15,9 +15,11 @@ type Props = {
   me: Profile
   user: AppUser
   onChange: () => void
+  /** Volver a ver el tutorial */
+  onShowTutorial?: () => void
 }
 
-export default function ProfileSheet({ open, onClose, me, user, onChange }: Props) {
+export default function ProfileSheet({ open, onClose, me, user, onChange, onShowTutorial }: Props) {
   const api = useApi()
   const auth = useAuth()
   const [name, setName] = useState(me.display_name)
@@ -91,6 +93,11 @@ export default function ProfileSheet({ open, onClose, me, user, onChange }: Prop
         <FriendCode code={me.friend_code} />
       </div>
 
+      {onShowTutorial && (
+        <button type="button" className="btn btn--ghost btn--block profile-terms" onClick={onShowTutorial}>
+          🎓 Ver el tutorial
+        </button>
+      )}
       <button type="button" className="btn btn--ghost btn--block profile-terms" onClick={() => setShowTerms(true)}>
         ⚠️ Términos y condiciones
       </button>
