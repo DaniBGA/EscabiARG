@@ -49,6 +49,7 @@ Necesitás:
 > | 7 | `20261110000000_tiempo_real.sql` |
 > | 8 | `20261111000000_quemar.sql` |
 > | 9 | `20261112000000_viajes_y_boliche.sql` |
+> | 10 | `20261116000000_prenda_elegida.sql` |
 
 ### 2.b Tiempo real
 

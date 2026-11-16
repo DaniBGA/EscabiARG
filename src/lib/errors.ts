@@ -60,6 +60,7 @@ const MESSAGES: Record<string, string> = {
   INVALID_AMOUNT: 'Poné un monto válido.',
   INFRACTION_NOT_FOUND: 'Esa infracción ya no está en la lista.',
   FORFEIT_NOT_FOUND: 'Esa prenda ya no existe.',
+  FORFEIT_INVALID: 'La prenda tiene que tener entre 3 y 140 caracteres.',
   FORFEIT_ALREADY_DONE: 'Esa prenda ya la cumpliste.',
   INVALID_OPPONENT: 'Elegí a alguien del viaje (que no seas vos).',
   INVALID_SECONDS: 'Elegí un tiempo válido.',

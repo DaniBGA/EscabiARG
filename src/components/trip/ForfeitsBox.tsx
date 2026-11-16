@@ -26,6 +26,10 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true, bo
   const [who, setWho] = useState<string | null>(null)
   const [infraction, setInfraction] = useState<string | null>(null)
   const [photos, setPhotos] = useState<Blob[]>([])
+  /** Qué prenda le toca: al azar, una de las cargadas o escrita por quien reporta */
+  const [forfeitMode, setForfeitMode] = useState<'random' | 'list' | 'write'>('random')
+  const [pickedForfeit, setPickedForfeit] = useState<string | null>(null)
+  const [writtenForfeit, setWrittenForfeit] = useState('')
   const [doing, setDoing] = useState<PlayerForfeit | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +37,15 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true, bo
   const theme = boliche ? 'boliche' : 'normal'
   const themed = detail.infractions.filter((i) => (i.theme ?? 'normal') === theme)
   const infractions = themed.length > 0 ? themed : detail.infractions
+  const themedForfeits = detail.forfeits.filter((f) => (f.theme ?? 'normal') === theme)
+  const forfeitOptions = themedForfeits.length > 0 ? themedForfeits : detail.forfeits
+  const chosenForfeit =
+    forfeitMode === 'write'
+      ? writtenForfeit.trim()
+      : forfeitMode === 'list'
+        ? forfeitOptions.find((f) => f.id === pickedForfeit)?.text ?? ''
+        : null
+  const forfeitReady = forfeitMode === 'random' || (chosenForfeit !== null && chosenForfeit.length >= 3)
   const mine = detail.playerForfeits.filter((f) => f.user_id === me && f.status === 'to_do')
   const others = detail.playerForfeits.filter((f) => !(f.user_id === me && f.status === 'to_do')).slice(0, 12)
 
@@ -41,16 +54,19 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true, bo
     setWho(null)
     setInfraction(null)
     setPhotos([])
+    setForfeitMode('random')
+    setPickedForfeit(null)
+    setWrittenForfeit('')
     setError(null)
   }
 
   const report = async () => {
-    if (!who || !infraction) return
+    if (!who || !infraction || !forfeitReady) return
     setBusy(true)
     setError(null)
     try {
       const paths = photos.length ? await uploadPhotos(api, detail.trip.id, me, photos) : []
-      await api.reportInfraction(detail.trip.id, who, infraction, paths)
+      await api.reportInfraction(detail.trip.id, who, infraction, paths, chosenForfeit)
       const inf = detail.infractions.find((i) => i.id === infraction)
       resetReport()
       onChange(`${inf?.emoji ?? '📋'} Infracción reportada: si la valida la mayoría, a ${name(who)} le toca prenda`)
@@ -82,7 +98,7 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true, bo
     <section className="card-box card-box--forfeit" id="prendas" aria-labelledby="forfeits-title">
       <h3 id="forfeits-title" className="box-title">Infracciones y prendas</h3>
       <p className="muted">
-        ¿Alguien se levantó tarde o terminó roto? Reportalo: si la mayoría lo valida, le toca una prenda al azar.
+        ¿Alguien se levantó tarde o terminó roto? Reportalo y elegí la prenda (o que toque una al azar): si la mayoría lo valida, la tiene que cumplir.
       </p>
       {canReport && (
         <button type="button" className="btn btn--ghost btn--block forfeit-report" onClick={() => setReporting(true)}>
@@ -149,12 +165,57 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true, bo
             </div>
           </div>
           <div>
-            <p className="step-label">3. Prueba (opcional, hasta 3 fotos)</p>
+            <p className="step-label">3. ¿Qué prenda le toca?</p>
+            <div className="seg seg--3" role="group" aria-label="Prenda">
+              {([
+                ['random', '🎲 Al azar'],
+                ['list', '📋 Elegir una de las cargadas'],
+                ['write', '✍️ Escribirla'],
+              ] as const).map(([key, label]) => (
+                <button key={key} type="button" className={`seg-btn${forfeitMode === key ? ' is-selected' : ''}`}
+                  aria-pressed={forfeitMode === key} onClick={() => setForfeitMode(key)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {forfeitMode === 'random' && (
+              <p className="muted small">Cuando se valide, le toca una de la lista{boliche ? ' de boliche' : ''} al azar.</p>
+            )}
+            {forfeitMode === 'list' && (
+              forfeitOptions.length === 0 ? (
+                <p className="muted small">No hay prendas cargadas: el organizador las agrega en Reglas.</p>
+              ) : (
+                <div className="forfeit-options">
+                  {forfeitOptions.map((f) => (
+                    <button key={f.id} type="button" className={`infraction-choice${f.id === pickedForfeit ? ' is-selected' : ''}`}
+                      onClick={() => setPickedForfeit(f.id)} aria-pressed={f.id === pickedForfeit}>
+                      {f.text}
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+            {forfeitMode === 'write' && (
+              <label className="field">
+                <span>La prenda</span>
+                <textarea
+                  className="forfeit-input"
+                  value={writtenForfeit}
+                  onChange={(e) => setWrittenForfeit(e.target.value)}
+                  placeholder="Ej: Bailar la Macarena en el medio del living"
+                  maxLength={140}
+                  rows={2}
+                />
+              </label>
+            )}
+          </div>
+          <div>
+            <p className="step-label">4. Prueba (opcional, hasta 3 fotos)</p>
             <PhotoPicker photos={photos} onChange={setPhotos} max={3} label="Sacar foto" />
           </div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
-          <button type="button" className="btn btn--primary btn--block" disabled={busy || !who || !infraction} onClick={report}>
-            {busy ? 'Enviando…' : 'Reportar'}
+          <button type="button" className="btn btn--primary btn--block" disabled={busy || !who || !infraction || !forfeitReady} onClick={report}>
+            {busy ? 'Enviando…' : !forfeitReady ? (forfeitMode === 'write' ? 'Escribí la prenda' : 'Elegí la prenda') : 'Reportar'}
           </button>
         </div>
       </Sheet>

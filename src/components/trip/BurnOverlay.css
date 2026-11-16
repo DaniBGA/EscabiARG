@@ -1,0 +1,116 @@
+/* Quemar: llamas que suben desde abajo y cartel ardiendo */
+.burn-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 60% at 50% 110%, rgba(255, 90, 0, 0.75), transparent 65%),
+    radial-gradient(60% 40% at 50% 100%, rgba(255, 210, 60, 0.5), transparent 70%),
+    #1a0703;
+  color: #fff;
+  text-align: center;
+  cursor: pointer;
+  animation: burn-in 0.3s ease-out both, burn-shake 0.45s 0.15s ease-in-out 2;
+}
+
+.burn-overlay.is-leaving { animation: burn-out 0.35s ease-in both; }
+
+.burn-flames {
+  position: absolute;
+  inset: auto 0 0;
+  height: 70%;
+  pointer-events: none;
+}
+
+.burn-flame {
+  position: absolute;
+  bottom: -12%;
+  width: 26vw;
+  max-width: 160px;
+  aspect-ratio: 1 / 2.2;
+  border-radius: 50% 50% 45% 45% / 65% 65% 35% 35%;
+  background: radial-gradient(60% 55% at 50% 75%, #fff3b0 0%, #ffcf3d 25%, #ff7a1a 55%, rgba(220, 40, 0, 0) 75%);
+  filter: blur(2px);
+  mix-blend-mode: screen;
+  transform-origin: 50% 100%;
+  animation: flame 0.9s ease-in-out infinite alternate;
+}
+
+.burn-flame--0 { left: -6%; animation-duration: 0.8s; }
+.burn-flame--1 { left: 8%; height: auto; animation-duration: 1s; animation-delay: -0.3s; }
+.burn-flame--2 { left: 20%; animation-duration: 0.7s; animation-delay: -0.5s; }
+.burn-flame--3 { left: 33%; animation-duration: 0.95s; animation-delay: -0.1s; }
+.burn-flame--4 { left: 45%; animation-duration: 0.75s; animation-delay: -0.6s; }
+.burn-flame--5 { left: 57%; animation-duration: 0.9s; animation-delay: -0.2s; }
+.burn-flame--6 { left: 69%; animation-duration: 0.8s; animation-delay: -0.4s; }
+.burn-flame--7 { left: 81%; animation-duration: 1.05s; animation-delay: -0.7s; }
+.burn-flame--8 { left: 93%; animation-duration: 0.85s; animation-delay: -0.15s; }
+
+.burn-emoji {
+  position: relative;
+  font-size: 6rem;
+  line-height: 1;
+  animation: burn-pop 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both, flame-flicker 0.4s 0.6s ease-in-out infinite alternate;
+}
+
+.burn-sign {
+  position: relative;
+  margin: 0;
+  max-width: 340px;
+  font-family: var(--font-logo);
+  font-size: clamp(2.3rem, 11vw, 4rem);
+  line-height: 1.02;
+  color: #fff7d6;
+  text-shadow: 0 0 6px #ffb020, 0 0 18px #ff6a00, 0 0 36px #ff2a00, 3px 3px 0 #5a1400;
+  animation: burn-pop 0.6s 0.15s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.burn-sub {
+  position: relative;
+  max-width: 320px;
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #ffe2c4;
+}
+
+.burn-sub strong { color: #ff9b86; }
+
+.burn-hint {
+  position: relative;
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+@keyframes burn-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes burn-out { to { opacity: 0; transform: scale(1.05); } }
+@keyframes burn-pop { from { opacity: 0; transform: scale(0.4) translateY(30px); } to { opacity: 1; transform: none; } }
+@keyframes burn-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px) rotate(-0.6deg); }
+  75% { transform: translateX(6px) rotate(0.6deg); }
+}
+@keyframes flame {
+  from { transform: scaleY(0.85) scaleX(1.05) rotate(-3deg); opacity: 0.8; }
+  to { transform: scaleY(1.15) scaleX(0.92) rotate(3deg); opacity: 1; }
+}
+@keyframes flame-flicker {
+  from { transform: scale(1) rotate(-4deg); }
+  to { transform: scale(1.08) rotate(4deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burn-overlay,
+  .burn-overlay.is-leaving,
+  .burn-flame,
+  .burn-emoji,
+  .burn-sign { animation: none; }
+}

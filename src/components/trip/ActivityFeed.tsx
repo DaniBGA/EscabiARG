@@ -72,6 +72,9 @@ export default function ActivityFeed({ events, eventVotes, members, userId, toda
                           ? `· 🔥 tomando ${e.title}`
                           : `· ${e.title}`}
                   </p>
+                  {e.kind === 'infraction' && e.forfeit_text && (
+                    <p className="feed-detail">🙈 Prenda elegida: {e.forfeit_text}</p>
+                  )}
                   {e.kind === 'burn' && (
                     <p className="feed-detail">{e.actor_id === userId ? 'Quemada tuya 😈' : `Quemada de ${name(e.actor_id)}`}</p>
                   )}

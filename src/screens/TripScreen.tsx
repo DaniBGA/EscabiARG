@@ -25,6 +25,7 @@ import Avatar from '../components/Avatar'
 import { BackIcon, DizzyIcon, FlameIcon, MugIcon } from '../components/icons'
 import ActivityFeed from '../components/trip/ActivityFeed'
 import BolicheOverlay from '../components/trip/BolicheOverlay'
+import BurnOverlay, { type BurnInfo } from '../components/trip/BurnOverlay'
 import BurnSheet from '../components/trip/BurnSheet'
 import CardsSection from '../components/trip/CardsSection'
 import CasinoBox from '../components/trip/CasinoBox'
@@ -90,6 +91,8 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const [clockOffset, setClockOffset] = useState(0)
   const [closedDuels, setClosedDuels] = useState<Record<string, boolean>>({})
   const [quiebreTitle, setQuiebreTitle] = useState<string | null>(null)
+  /** Alguien quemó a alguien: animación con llamas */
+  const [burnInfo, setBurnInfo] = useState<BurnInfo | null>(null)
   /** Arrancó la Hora boliche: animación (una vez por activación) */
   const [bolicheBy, setBolicheBy] = useState<string | null>(null)
   const [togglingBoliche, setTogglingBoliche] = useState(false)
@@ -290,6 +293,43 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       // sin localStorage: puede repetirse, no pasa nada
     }
   }, [detail, tripId, quiebreTitleFor])
+
+  // Si alguien acaba de quemar a alguien (y todavía no lo viste), llamas a pantalla completa
+  useEffect(() => {
+    if (!detail) return
+    const key = `escabiarg:seen-burns:${tripId}`
+    let seen: string[] = []
+    try {
+      seen = JSON.parse(localStorage.getItem(key) ?? '[]') as string[]
+    } catch {
+      seen = []
+    }
+    const fresh = detail.events.filter(
+      (e) =>
+        e.kind === 'burn' &&
+        e.status !== 'rejected' &&
+        Date.now() - Date.parse(e.created_at) < QUIEBRE_FRESH_MS &&
+        !seen.includes(e.id),
+    )
+    if (fresh.length === 0) return
+    const e = fresh[0]
+    const who = (id: string) => detail.trip.members.find((m) => m.user_id === id)?.profile?.display_name ?? 'Alguien'
+    setBurnInfo({
+      title:
+        e.actor_id === user.id
+          ? `¡Quemaste a ${who(e.user_id)}!`
+          : e.user_id === user.id
+            ? `¡${who(e.actor_id)} te quemó!`
+            : `¡${who(e.actor_id)} quemó a ${who(e.user_id)}!`,
+      drink: `${e.emoji} ${e.title}`,
+      points: e.points,
+    })
+    try {
+      localStorage.setItem(key, JSON.stringify([...fresh.map((x) => x.id), ...seen].slice(0, 100)))
+    } catch {
+      // sin localStorage: puede repetirse, no pasa nada
+    }
+  }, [detail, tripId, user.id])
 
   // Si se activó la Hora boliche hace poco y todavía no la viste, animación a pantalla completa
   const bolicheAt = detail?.trip.boliche_at ?? null
@@ -761,7 +801,8 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       })()}
 
       {quiebreTitle && <QuiebreOverlay title={quiebreTitle} onClose={() => setQuiebreTitle(null)} />}
-      {bolicheBy && !quiebreTitle && <BolicheOverlay by={bolicheBy} onClose={() => setBolicheBy(null)} />}
+      {burnInfo && !quiebreTitle && <BurnOverlay info={burnInfo} onClose={() => setBurnInfo(null)} />}
+      {bolicheBy && !quiebreTitle && !burnInfo && <BolicheOverlay by={bolicheBy} onClose={() => setBolicheBy(null)} />}
 
       {toast && (
         <div className="toast" role="status">

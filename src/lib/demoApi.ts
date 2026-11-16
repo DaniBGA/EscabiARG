@@ -496,7 +496,7 @@ function resolveEvent(data: DemoData, e: DemoData['events'][number]) {
       }
     }
     e.status = 'approved'
-    if (e.kind === 'infraction') assignForfeit(data, e.trip_id, e.user_id, 'infraction', e.title)
+    if (e.kind === 'infraction') assignForfeit(data, e.trip_id, e.user_id, 'infraction', e.title, e.forfeit_text)
   } else if (no * 2 >= eligible) {
     if (e.kind === 'drink' && e.card_id) {
       const card = data.cards.find((c) => c.id === e.card_id)
@@ -510,7 +510,9 @@ function resolveEvent(data: DemoData, e: DemoData['events'][number]) {
   }
 }
 
-function assignForfeit(data: DemoData, tripId: string, userId: string, source: PlayerForfeit['source'], reason: string) {
+function assignForfeit(
+  data: DemoData, tripId: string, userId: string, source: PlayerForfeit['source'], reason: string, chosen?: string | null,
+) {
   const all = data.forfeits.filter((f) => f.trip_id === tripId && !f.archived)
   const wanted = themeOf(data.trips.find((t) => t.id === tripId))
   const themed = all.filter((f) => (f.theme ?? 'normal') === wanted)
@@ -522,7 +524,7 @@ function assignForfeit(data: DemoData, tripId: string, userId: string, source: P
     user_id: userId,
     source,
     reason,
-    forfeit: pick?.text ?? 'Lavar los platos de todos.',
+    forfeit: chosen || (pick?.text ?? 'Lavar los platos de todos.'),
     status: 'to_do',
     created_at: new Date().toISOString(),
     done_at: null,
@@ -1531,7 +1533,7 @@ export const demoApi: Api = {
     save(data)
   },
 
-  async reportInfraction(tripId, userId, infractionId, photoPaths) {
+  async reportInfraction(tripId, userId, infractionId, photoPaths, forfeit = null) {
     await wait()
     const data = load()
     const trip = requireOpen(data, tripId)
@@ -1541,7 +1543,10 @@ export const demoApi: Api = {
     const photos = [...new Set(photoPaths)]
     if (photos.length > 3 || photos.length !== photoPaths.length) throw new Error('PHOTO_REQUIRED')
     for (const p of photos) checkPhoto(data, tripId, p)
+    const chosen = forfeit?.trim() || null
+    if (chosen && (chosen.length < 3 || chosen.length > 140)) throw new Error('FORFEIT_INVALID')
     const e = addEvent(data, {
+      forfeit_text: chosen,
       trip_id: tripId,
       user_id: userId,
       actor_id: data.me.id,

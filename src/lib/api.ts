@@ -92,6 +92,8 @@ export type TripEvent = {
   created_at: string
   status: EventStatus
   ref_id?: string | null
+  /** Infracción: la prenda que eligió o escribió quien la reportó (null = al azar) */
+  forfeit_text?: string | null
 }
 
 // ---------- Infracciones, prendas, ruleta de cocinero y casino ----------
@@ -313,7 +315,8 @@ export type Api = {
   archiveInfraction(id: string): Promise<void>
   saveForfeit(tripId: string, item: { id?: string; text: string; theme?: Theme }): Promise<void>
   archiveForfeit(id: string): Promise<void>
-  reportInfraction(tripId: string, userId: string, infractionId: string, photoPaths: string[]): Promise<void>
+  /** forfeit: la prenda elegida o escrita; null = que toque una al azar */
+  reportInfraction(tripId: string, userId: string, infractionId: string, photoPaths: string[], forfeit?: string | null): Promise<void>
   completeForfeit(forfeitId: string, photoPath: string | null): Promise<void>
   startChefSpin(tripId: string, kind: ChefKind): Promise<void>
   joinChefSpin(spinId: string): Promise<void>
@@ -715,8 +718,11 @@ export const supabaseApi: Api = {
   archiveInfraction: (id) => archiveListItem('trip_infractions', id),
   saveForfeit: (tripId, item) => saveListItem('trip_forfeits', tripId, { ...item, text: item.text.trim() }),
   archiveForfeit: (id) => archiveListItem('trip_forfeits', id),
-  async reportInfraction(tripId, userId, infractionId, photoPaths) {
-    await rpc('report_infraction', { p_trip: tripId, p_user: userId, p_infraction: infractionId, p_photos: photoPaths })
+  async reportInfraction(tripId, userId, infractionId, photoPaths, forfeit = null) {
+    const args: Record<string, unknown> = { p_trip: tripId, p_user: userId, p_infraction: infractionId, p_photos: photoPaths }
+    // Solo se manda si hay prenda elegida: así sigue andando con la base anterior a esta opción
+    if (forfeit) args.p_forfeit = forfeit
+    await rpc('report_infraction', args)
   },
   async completeForfeit(forfeitId, photoPath) {
     await rpc('complete_forfeit', { p_forfeit: forfeitId, p_photo: photoPath })

@@ -2381,3 +2381,26 @@
 @media (prefers-reduced-motion: reduce) {
   .boliche-ball { animation: none; }
 }
+
+/* ---------- Prenda elegida al reportar ---------- */
+.seg--3 { grid-template-columns: repeat(3, 1fr); }
+.seg--3 .seg-btn { padding: 8px 6px; font-size: 0.82rem; line-height: 1.15; }
+
+.forfeit-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  margin-top: 8px;
+  overflow-y: auto;
+}
+
+.forfeit-options .infraction-choice { text-align: left; }
+
+.forfeit-input {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}
+
+.validate-forfeit { margin: 4px 0 2px; font-size: 0.92rem; }

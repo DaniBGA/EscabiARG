@@ -96,6 +96,11 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
             <span className={`pts-chip${e.points < 0 ? ' is-neg' : ''}`}>{formatPoints(e.points)}</span>
           ) : null}
         </p>
+        {e.kind === 'infraction' && (
+          <p className="validate-forfeit">
+            🙈 Prenda: {e.forfeit_text ? <strong>{e.forfeit_text}</strong> : 'le toca una al azar'}
+          </p>
+        )}
         <p className="muted small">
           {formatTime(e.created_at)} · {t.yes} de {t.needed} votos para validar
         </p>
