@@ -87,19 +87,18 @@ export function addDays(day: string, n: number) {
   return d.toISOString().slice(0, 10)
 }
 
+// Armar un formateador de fechas es caro: se crean una sola vez
+const DAY_FORMAT = new Intl.DateTimeFormat('es-AR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+const TIME_FORMAT = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+
 export function formatDay(day: string, today: string) {
   if (day === today) return 'Hoy'
   if (day === addDays(today, -1)) return 'Ayer'
-  return new Date(`${day}T12:00:00Z`).toLocaleDateString('es-AR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  })
+  return DAY_FORMAT.format(new Date(`${day}T12:00:00Z`))
 }
 
 export function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return TIME_FORMAT.format(new Date(iso))
 }
 
 // ---------- Puntajes ----------
@@ -231,7 +230,13 @@ export function myPendingItems(detail: TripDetail, me: string, now = Date.now())
   for (const c of detail.casinoSessions) {
     const mine = detail.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === me)
     const over = c.status === 'reporting' || (c.status === 'running' && Date.parse(c.ends_at) <= now)
-    if (mine && !mine.reported_at && over && Date.parse(c.report_until) > now) {
+    // Terminado el tiempo, carga el resultado solo el que sigue con plata (y si nadie reclamó todavía)
+    const claimed = detail.casinoPlayers.some((p) => {
+      if (p.session_id !== c.id) return false
+      const e = detail.events.find((x) => x.id === p.event_id)
+      return Boolean(e && e.points > 0 && (e.status === 'pending' || e.status === 'approved'))
+    })
+    if (mine && !mine.reported_at && !mine.busted_at && !claimed && over && Date.parse(c.report_until) > now) {
       items.push({ type: 'casinoReport', session: c })
     }
   }

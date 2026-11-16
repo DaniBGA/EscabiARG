@@ -76,8 +76,8 @@ export default function QuiebreSheet({ open, onClose, tripId, userId, members, p
         </div>
 
         <div>
-          <p className="step-label">2. Fotos de la quebrada (1 a 3)</p>
-          <PhotoPicker photos={photos} onChange={setPhotos} max={3} label="Sacar foto" />
+          <p className="step-label">2. Fotos o videos de la quebrada (1 a 3)</p>
+          <PhotoPicker photos={photos} onChange={setPhotos} max={3} label="Foto o video" allowVideo />
         </div>
 
         {error && <p className="notice notice--error" role="alert">{error}</p>}

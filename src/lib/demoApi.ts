@@ -45,6 +45,7 @@ import {
   outingState,
   tripDay,
 } from './game'
+import { extensionFor } from './media'
 import { BOLICHE_MISSIONS, MISSIONS } from './missions'
 import { BOLICHE_FORFEITS, BOLICHE_INFRACTIONS, SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
 
@@ -403,6 +404,15 @@ export function resetDemoData() {
 /** Pequeña demora para que se sienta como una app real */
 const wait = (ms = 220) => new Promise((r) => setTimeout(r, ms))
 
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
 const byName = (a: Profile, b: Profile) => a.display_name.localeCompare(b.display_name, 'es')
 
 function everyone(data: DemoData) {
@@ -415,7 +425,7 @@ function withProfiles(data: DemoData, trip: StoredTrip) {
     ...trip,
     members: trip.members.map((m) => {
       const p = all.find((e) => e.id === m.user_id)
-      return { ...m, profile: p ? { id: p.id, display_name: p.display_name } : null }
+      return { ...m, profile: p ? { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url ?? null } : null }
     }),
   }
 }
@@ -496,7 +506,7 @@ function resolveEvent(data: DemoData, e: DemoData['events'][number]) {
       }
     }
     e.status = 'approved'
-    if (e.kind === 'infraction') assignForfeit(data, e.trip_id, e.user_id, 'infraction', e.title)
+    if (e.kind === 'infraction') assignForfeit(data, e.trip_id, e.user_id, 'infraction', e.title, e.forfeit_text)
   } else if (no * 2 >= eligible) {
     if (e.kind === 'drink' && e.card_id) {
       const card = data.cards.find((c) => c.id === e.card_id)
@@ -510,7 +520,9 @@ function resolveEvent(data: DemoData, e: DemoData['events'][number]) {
   }
 }
 
-function assignForfeit(data: DemoData, tripId: string, userId: string, source: PlayerForfeit['source'], reason: string) {
+function assignForfeit(
+  data: DemoData, tripId: string, userId: string, source: PlayerForfeit['source'], reason: string, chosen?: string | null,
+) {
   const all = data.forfeits.filter((f) => f.trip_id === tripId && !f.archived)
   const wanted = themeOf(data.trips.find((t) => t.id === tripId))
   const themed = all.filter((f) => (f.theme ?? 'normal') === wanted)
@@ -522,7 +534,7 @@ function assignForfeit(data: DemoData, tripId: string, userId: string, source: P
     user_id: userId,
     source,
     reason,
-    forfeit: pick?.text ?? 'Lavar los platos de todos.',
+    forfeit: chosen || (pick?.text ?? 'Lavar los platos de todos.'),
     status: 'to_do',
     created_at: new Date().toISOString(),
     done_at: null,
@@ -693,35 +705,43 @@ function botPace(duelId: string, botId: string) {
   return Math.abs(h) % 1000 / 1000
 }
 
+/** El reclamo del ganador (pendiente o validado) */
+const casinoClaim = (data: DemoData, sessionId: string) =>
+  data.casinoPlayers
+    .filter((p) => p.session_id === sessionId)
+    .map((p) => data.events.find((e) => e.id === p.event_id))
+    .find((e) => e && e.points > 0 && (e.status === 'pending' || e.status === 'approved'))
+
+/** Igual que la base: el último con plata gana; si no, el ganador sube la foto */
 function resolveCasino(data: DemoData, c: CasinoSession, now = Date.now()) {
   if (c.status === 'done' || c.status === 'cancelled') return
+  const players = data.casinoPlayers.filter((p) => p.session_id === c.id)
+  const alive = players.filter((p) => !p.busted_at)
+  if (players.length >= 2 && alive.length === 1) {
+    addEvent(data, {
+      trip_id: c.trip_id,
+      user_id: alive[0].user_id,
+      actor_id: alive[0].user_id,
+      kind: 'casino',
+      points: c.prize,
+      title: 'Ganó el casino',
+      emoji: '🎰',
+      detail: 'Fue el último que quedó con plata 🤑',
+      ref_id: c.id,
+    })
+    c.status = 'done'
+    return
+  }
+  if (players.length >= 1 && alive.length === 0) {
+    c.status = 'done'
+    return
+  }
   if (c.status === 'running') {
     if (now < Date.parse(c.ends_at)) return
     c.status = 'reporting'
   }
-  const players = data.casinoPlayers.filter((p) => p.session_id === c.id)
-  const eventOf = (p: CasinoPlayer) => data.events.find((e) => e.id === p.event_id)
-  const missing = players.some((p) => !p.reported_at)
-  const pending = players.some((p) => eventOf(p)?.status === 'pending')
-  if ((missing || pending) && now < Date.parse(c.report_until)) return
-  const approved = players.filter((p) => eventOf(p)?.status === 'approved' && p.amount !== null)
-  const top = Math.max(-Infinity, ...approved.map((p) => p.amount as number))
-  if (top > 0) {
-    for (const p of approved.filter((x) => x.amount === top)) {
-      addEvent(data, {
-        trip_id: c.trip_id,
-        user_id: p.user_id,
-        actor_id: p.user_id,
-        kind: 'casino',
-        points: c.prize,
-        title: 'Ganó el casino',
-        emoji: '🎰',
-        detail: formatMoney(top),
-        ref_id: c.id,
-      })
-    }
-  }
-  c.status = 'done'
+  const claim = casinoClaim(data, c.id)
+  if (claim?.status === 'approved' || now >= Date.parse(c.report_until)) c.status = 'done'
 }
 
 function resolveChallenge(data: DemoData, c: MissionChallenge, now = Date.now()) {
@@ -867,17 +887,29 @@ function botsAct(data: DemoData, now = Date.now()) {
           data.casinoPlayers.push({ session_id: c.id, trip_id: trip.id, user_id: bot, amount: null, event_id: null, reported_at: null })
         }
         const player = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === bot)
-        if (c.status === 'reporting' && player && !player.reported_at && now - Date.parse(c.ends_at) >= 3000 + i * 2000) {
-          const amount = Math.round((Math.random() * 30000 - 10000) / 500) * 500
+        // Algunos de los de ejemplo se funden a mitad de camino
+        const pace = botPace(c.id, bot)
+        const span = Date.parse(c.ends_at) - Date.parse(c.starts_at)
+        if (c.status === 'running' && player && !player.busted_at && pace < 0.5 &&
+            now - Date.parse(c.starts_at) >= span * (0.3 + pace)) {
+          player.busted_at = iso(now)
+          resolveCasino(data, c, now)
+        }
+        // Si vos quedaste en 0, el primero de ejemplo que sigue con plata reclama
+        const me = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === data.me.id)
+        const myTurnOver = !me || me.busted_at || me.reported_at
+        if (c.status === 'reporting' && player && !player.busted_at && !player.reported_at && myTurnOver &&
+            !casinoClaim(data, c.id) && now - Date.parse(c.ends_at) >= 3000 + i * 2000) {
+          const amount = Math.round((5000 + Math.random() * 30000) / 500) * 500
           const e = addEvent(data, {
             trip_id: trip.id,
             user_id: bot,
             actor_id: bot,
             kind: 'casino',
-            points: 0,
-            title: 'Resultado en el casino',
+            points: c.prize,
+            title: 'Ganó el casino',
             emoji: '🎰',
-            detail: formatMoney(amount),
+            detail: `Le quedaron ${formatMoney(amount).replace('+', '')}`,
             photo_paths: [seedPhotoPath('🎰', 280)],
             status: 'pending',
             ref_id: c.id,
@@ -984,10 +1016,47 @@ function challengeForVoter(data: DemoData, challengeId: string) {
   return c
 }
 
+const DEMO_TERMS_KEY = 'escabiarg:demo-terms'
+
 export const demoApi: Api = {
+  async getTermsVersion() {
+    try {
+      return Number(localStorage.getItem(DEMO_TERMS_KEY) ?? 0) || 0
+    } catch {
+      return 0
+    }
+  },
+  async acceptTerms(_userId, version) {
+    try {
+      localStorage.setItem(DEMO_TERMS_KEY, String(version))
+    } catch {
+      // en modo privado se vuelve a pedir la próxima vez
+    }
+  },
+
   async getMyProfile() {
     await wait()
     return load().me
+  },
+
+  // En la demo no hay servidor: solo avisos locales
+  async pushPublicKey() {
+    return null
+  },
+  async savePushSubscription() {},
+  async deletePushSubscription() {},
+  // En la demo todo pasa en este celular: no hay cambios que perderse
+  async tripPulse() {
+    return null
+  },
+
+  async setAvatar(_userId, photo) {
+    await wait()
+    const data = load()
+    // En la demo la foto queda guardada en este celular
+    const url = photo ? await blobToDataUrl(photo) : null
+    save({ ...data, me: { ...data.me, avatar_url: url } })
+    return url
   },
 
   async updateDisplayName(_userId, displayName) {
@@ -1158,7 +1227,7 @@ export const demoApi: Api = {
   },
 
   async uploadPhoto(tripId, _userId, photo) {
-    const path = `demo/${tripId}/${newId()}.jpg`
+    const path = `demo/${tripId}/${newId()}.${extensionFor((photo.type || 'image/jpeg').split(';')[0])}`
     await saveDemoPhoto(path, photo)
     return path
   },
@@ -1531,7 +1600,7 @@ export const demoApi: Api = {
     save(data)
   },
 
-  async reportInfraction(tripId, userId, infractionId, photoPaths) {
+  async reportInfraction(tripId, userId, infractionId, photoPaths, forfeit = null) {
     await wait()
     const data = load()
     const trip = requireOpen(data, tripId)
@@ -1541,7 +1610,10 @@ export const demoApi: Api = {
     const photos = [...new Set(photoPaths)]
     if (photos.length > 3 || photos.length !== photoPaths.length) throw new Error('PHOTO_REQUIRED')
     for (const p of photos) checkPhoto(data, tripId, p)
+    const chosen = forfeit?.trim() || null
+    if (chosen && (chosen.length < 3 || chosen.length > 140)) throw new Error('FORFEIT_INVALID')
     const e = addEvent(data, {
+      forfeit_text: chosen,
       trip_id: tripId,
       user_id: userId,
       actor_id: data.me.id,
@@ -1714,6 +1786,22 @@ export const demoApi: Api = {
     save(data)
   },
 
+  async bustCasino(sessionId) {
+    await wait()
+    const data = load()
+    const c = data.casinoSessions.find((x) => x.id === sessionId)
+    if (!c) throw new Error('CASINO_NOT_FOUND')
+    tripFor(data, c.trip_id)
+    resolveCasino(data, c)
+    if (c.status !== 'running') throw new Error('CASINO_CLOSED')
+    const player = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === data.me.id)
+    if (!player) throw new Error('CASINO_NOT_JOINED')
+    if (player.busted_at) throw new Error('CASINO_ALREADY_BUSTED')
+    player.busted_at = iso(Date.now())
+    resolveCasino(data, c)
+    save(data)
+  },
+
   async reportCasino(sessionId, amount, photoPath) {
     await wait()
     const data = load()
@@ -1725,18 +1813,20 @@ export const demoApi: Api = {
     if (c.status !== 'reporting') throw new Error('CASINO_CLOSED')
     const player = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === data.me.id)
     if (!player) throw new Error('CASINO_NOT_JOINED')
+    if (player.busted_at) throw new Error('CASINO_BUSTED')
     if (player.reported_at) throw new Error('CASINO_ALREADY_REPORTED')
-    if (!Number.isInteger(amount) || Math.abs(amount) > 100_000_000) throw new Error('INVALID_AMOUNT')
+    if (casinoClaim(data, c.id)) throw new Error('CASINO_CLAIM_PENDING')
+    if (!Number.isInteger(amount) || amount <= 0 || amount > 100_000_000) throw new Error('INVALID_AMOUNT')
     checkPhoto(data, c.trip_id, photoPath)
     const e = addEvent(data, {
       trip_id: c.trip_id,
       user_id: data.me.id,
       actor_id: data.me.id,
       kind: 'casino',
-      points: 0,
-      title: 'Resultado en el casino',
+      points: c.prize,
+      title: 'Ganó el casino',
       emoji: '🎰',
-      detail: formatMoney(amount),
+      detail: `Le quedaron ${formatMoney(amount).replace('+', '')}`,
       photo_paths: [photoPath],
       status: 'pending',
       ref_id: c.id,

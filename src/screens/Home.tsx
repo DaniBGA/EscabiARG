@@ -7,6 +7,8 @@ import CreateTripSheet from '../components/CreateTripSheet'
 import FriendsSheet from '../components/FriendsSheet'
 import ProfileSheet from '../components/ProfileSheet'
 import TripCard from '../components/TripCard'
+import Tutorial from '../components/Tutorial'
+import { markTutorialSeen, tutorialSeen } from '../lib/tutorial'
 import { FriendsIcon, MoonIcon, PlusIcon } from '../components/icons'
 import './Home.css'
 
@@ -22,6 +24,12 @@ export default function Home({ user }: { user: AppUser }) {
   const [trips, setTrips] = useState<Trip[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>('none')
+  // Tutorial: la primera vez que entrás (o cuando lo pedís desde el perfil)
+  const [tutorial, setTutorial] = useState(() => !tutorialSeen(userId))
+  const closeTutorial = () => {
+    markTutorialSeen(userId)
+    setTutorial(false)
+  }
 
   const loadProfile = useCallback(async () => setMe(await api.getMyProfile(userId)), [api, userId])
   const loadFriends = useCallback(async () => setFriends(await api.listFriends(userId)), [api, userId])
@@ -140,23 +148,29 @@ export default function Home({ user }: { user: AppUser }) {
         <div className="home-header-bar">
           <button
             type="button"
-            className="header-btn"
+            className="header-btn header-btn--labeled"
             onClick={() => setPanel('profile')}
             aria-label="Tu perfil"
+            data-tour="profile"
           >
             <Avatar id={me.id} name={me.display_name} size={40} />
+            <span className="header-label" aria-hidden="true">Perfil</span>
           </button>
 
           <h1 className="home-logo">EscabiARG</h1>
 
           <button
             type="button"
-            className="header-btn header-btn--friends"
+            className="header-btn header-btn--labeled"
             onClick={() => setPanel('friends')}
             aria-label={`Amigos (${friends.length})`}
+            data-tour="friends"
           >
-            <FriendsIcon size={26} />
-            {friends.length > 0 && <span className="header-badge">{friends.length}</span>}
+            <span className="header-friends-icon">
+              <FriendsIcon size={26} />
+              {friends.length > 0 && <span className="header-badge">{friends.length}</span>}
+            </span>
+            <span className="header-label" aria-hidden="true">Amigos</span>
           </button>
         </div>
       </header>
@@ -184,7 +198,7 @@ export default function Home({ user }: { user: AppUser }) {
           </div>
         )}
 
-        <div className="create-row">
+        <div className="create-row" data-tour="create">
           <button type="button" className="create-trip" onClick={() => setPanel('create')}>
             <span className="create-trip-icon"><PlusIcon size={28} /></span>
             <span className="create-trip-text">
@@ -203,7 +217,7 @@ export default function Home({ user }: { user: AppUser }) {
 
         {error && <p className="notice notice--error" role="alert">{error}</p>}
 
-        <section className="trips" aria-labelledby="trips-title">
+        <section className="trips" aria-labelledby="trips-title" data-tour="trips">
           <h2 id="trips-title" className="sign trips-title">Tus planes</h2>
 
           {trips === null ? (
@@ -249,11 +263,16 @@ export default function Home({ user }: { user: AppUser }) {
         onClose={() => setPanel('none')}
         me={me}
         user={user}
+        onShowTutorial={() => {
+          setPanel('none')
+          setTutorial(true)
+        }}
         onChange={safely(async () => {
           await loadProfile()
           await loadTrips()
         })}
       />
+      {tutorial && <Tutorial onClose={closeTutorial} />}
     </div>
   )
 }

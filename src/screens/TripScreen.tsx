@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TripDetail } from '../lib/api'
 import type { LiveChange } from '../lib/realtime'
+import { deliverNotice } from '../lib/notifications'
 import { applyTripChange, needsReload, nextDeadline } from '../lib/tripSync'
 import { useApi, type AppUser } from '../lib/authContext'
+import NotificationsPrompt from '../components/NotificationsPrompt'
 import { friendlyError } from '../lib/errors'
 import {
   activeCasino,
@@ -25,6 +27,7 @@ import Avatar from '../components/Avatar'
 import { BackIcon, DizzyIcon, FlameIcon, MugIcon } from '../components/icons'
 import ActivityFeed from '../components/trip/ActivityFeed'
 import BolicheOverlay from '../components/trip/BolicheOverlay'
+import BurnOverlay, { type BurnInfo } from '../components/trip/BurnOverlay'
 import BurnSheet from '../components/trip/BurnSheet'
 import CardsSection from '../components/trip/CardsSection'
 import CasinoBox from '../components/trip/CasinoBox'
@@ -69,6 +72,14 @@ const LIVE_RESYNC_MS = 180_000
 const AWAY_RELOAD_MS = 20_000
 /** Si después de una jugada no llega el aviso en vivo, se pide todo de nuevo */
 const ECHO_TIMEOUT_MS = 2_000
+/** Cada cuánto se chequea (con un pedido mínimo) que no se haya perdido nada en vivo */
+const PULSE_MS = 15_000
+/** Un cambio que no llegó en vivo después de esto se da por perdido */
+const PULSE_GRACE_MS = 2_500
+/** Si se perdió algo en vivo, se refresca seguido durante este rato */
+const STALE_MS = 60_000
+/** Los cambios que llegan juntos se aplican de una (un solo redibujado) */
+const BATCH_MS = 100
 /** Un quiebre se "anuncia" con animación si pasó hace menos de esto */
 const QUIEBRE_FRESH_MS = 15 * 60_000
 
@@ -90,6 +101,8 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const [clockOffset, setClockOffset] = useState(0)
   const [closedDuels, setClosedDuels] = useState<Record<string, boolean>>({})
   const [quiebreTitle, setQuiebreTitle] = useState<string | null>(null)
+  /** Alguien quemó a alguien: animación con llamas */
+  const [burnInfo, setBurnInfo] = useState<BurnInfo | null>(null)
   /** Arrancó la Hora boliche: animación (una vez por activación) */
   const [bolicheBy, setBolicheBy] = useState<string | null>(null)
   const [togglingBoliche, setTogglingBoliche] = useState(false)
@@ -106,6 +119,21 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   /** Cambios que llegan mientras se está pidiendo el viaje: se aplican arriba de la respuesta */
   const buffered = useRef<LiveChange[] | null>(null)
   const reloadTimer = useRef<number | undefined>(undefined)
+  /** Cambios en vivo esperando a aplicarse todos juntos */
+  const queued = useRef<LiveChange[]>([])
+  const flushTimer = useRef<number | undefined>(undefined)
+  /** Hora local en que se pidió el último viaje completo */
+  const lastLoadAt = useRef(0)
+  const clockOffsetRef = useRef(0)
+  /** Se perdió algo en vivo (ej: Supabase cortó por límite de mensajes): se refresca seguido */
+  const [stale, setStale] = useState(false)
+  const staleTimer = useRef<number | undefined>(undefined)
+
+  const markStale = useCallback(() => {
+    setStale(true)
+    window.clearTimeout(staleTimer.current)
+    staleTimer.current = window.setTimeout(() => setStale(false), STALE_MS)
+  }, [])
 
   const load = useCallback(async () => {
     const seq = ++loadSeq.current
@@ -117,8 +145,10 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       if (seq !== loadSeq.current) return
       const next = (buffered.current ?? []).reduce(applyTripChange, d)
       buffered.current = null
+      lastLoadAt.current = t0
       // Reloj del servidor ≈ hora de respuesta − mitad de la demora
-      setClockOffset(Date.parse(d.serverTime) - (t0 + t1) / 2)
+      clockOffsetRef.current = Date.parse(d.serverTime) - (t0 + t1) / 2
+      setClockOffset(clockOffsetRef.current)
       setDetail(next)
       setError(null)
     } catch (err) {
@@ -145,9 +175,12 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
     }
     const since = Date.now()
     window.setTimeout(() => {
-      if (lastChangeAt.current < since) void load()
+      if (lastChangeAt.current < since) {
+        markStale()
+        void load()
+      }
     }, ECHO_TIMEOUT_MS)
-  }, [load])
+  }, [load, markStale])
 
   const fast = Boolean(
     detail &&
@@ -172,7 +205,11 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
 
   useEffect(() => {
     load()
-    return () => window.clearTimeout(reloadTimer.current)
+    return () => {
+      window.clearTimeout(reloadTimer.current)
+      window.clearTimeout(flushTimer.current)
+      window.clearTimeout(staleTimer.current)
+    }
   }, [load])
 
   // En vivo: cada cambio que hace alguien llega por Supabase Realtime y se aplica al toque
@@ -180,13 +217,28 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
     const stop = api.subscribeTrip(tripId, {
       onChange(change) {
         lastChangeAt.current = Date.now()
+        // Aviso para varios de la sala (lo muestra el navegador si estás en otra app)
+        if (change.t === 'notifications') {
+          deliverNotice(change.row, me)
+          return
+        }
         buffered.current?.push(change)
         if (change.t === 'trips' && change.op === 'DELETE') {
           if (!deletingRef.current) setDeleted(true)
           return
         }
-        if (needsReload(change)) scheduleReload()
-        else setDetail((prev) => (prev ? applyTripChange(prev, change) : prev))
+        if (needsReload(change)) {
+          scheduleReload()
+          return
+        }
+        // Con mucha actividad llegan varios por segundo: se aplican juntos
+        queued.current.push(change)
+        flushTimer.current ??= window.setTimeout(() => {
+          flushTimer.current = undefined
+          const changes = queued.current
+          queued.current = []
+          setDetail((prev) => (prev ? changes.reduce(applyTripChange, prev) : prev))
+        }, BATCH_MS)
       },
       onStatus(isLive) {
         liveRef.current = isLive
@@ -199,17 +251,37 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       stop()
       liveRef.current = false
     }
-  }, [api, tripId, scheduleReload])
+  }, [api, tripId, scheduleReload, me])
+
+  // Con tiempo real, cada tanto se pregunta la hora del último cambio de la sala (es mínimo).
+  // Si hubo algo después de lo último que llegó en vivo, se perdió: se pide todo de nuevo.
+  useEffect(() => {
+    if (!live) return
+    const id = window.setInterval(async () => {
+      if (document.hidden) return
+      const pulse = await api.tripPulse(tripId).catch(() => null)
+      if (!pulse) return
+      const at = Date.parse(pulse)
+      const offset = clockOffsetRef.current
+      const seen = Math.max(lastChangeAt.current, lastLoadAt.current) + offset
+      if (at > seen && Date.now() + offset - at > PULSE_GRACE_MS) {
+        markStale()
+        void load()
+      }
+    }, PULSE_MS)
+    return () => window.clearInterval(id)
+  }, [live, api, tripId, load, markStale])
 
   // Sin tiempo real se refresca seguido; con tiempo real, solo de vez en cuando por las dudas
   useEffect(() => {
-    const ms = live ? LIVE_RESYNC_MS : inDuel ? DUEL_REFRESH_MS : fast ? FAST_REFRESH_MS : REFRESH_MS
+    const trusted = live && !stale
+    const ms = trusted ? LIVE_RESYNC_MS : inDuel ? DUEL_REFRESH_MS : fast || stale ? FAST_REFRESH_MS : REFRESH_MS
     const id = window.setInterval(() => {
       setNow(Date.now())
       if (!document.hidden) load()
     }, ms)
     return () => window.clearInterval(id)
-  }, [load, fast, inDuel, live])
+  }, [load, fast, inDuel, live, stale])
 
   // Al volver a la app (el celular suele cortar la conexión en segundo plano)
   const hiddenAt = useRef(0)
@@ -265,9 +337,9 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
     [detail, user.id],
   )
 
-  // Si alguien acaba de quebrar (y todavía no lo viste), animación a pantalla completa
+  // Si alguien acaba de quebrar (y todavía no lo viste), animación a pantalla completa (una a la vez)
   useEffect(() => {
-    if (!detail) return
+    if (!detail || quiebreTitle) return
     const key = `escabiarg:seen-quiebres:${tripId}`
     let seen: string[] = []
     try {
@@ -289,7 +361,48 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
     } catch {
       // sin localStorage: puede repetirse, no pasa nada
     }
-  }, [detail, tripId, quiebreTitleFor])
+  }, [detail, tripId, quiebreTitleFor, quiebreTitle])
+
+  // Si alguien acaba de quemar a alguien (y todavía no lo viste), llamas a pantalla completa.
+  // Una sola a la vez: si queman a varios seguido no se reinicia; al terminar se muestra la última.
+  useEffect(() => {
+    if (!detail || burnInfo) return
+    const key = `escabiarg:seen-burns:${tripId}`
+    let seen: string[] = []
+    try {
+      seen = JSON.parse(localStorage.getItem(key) ?? '[]') as string[]
+    } catch {
+      seen = []
+    }
+    const fresh = detail.events.filter(
+      (e) =>
+        e.kind === 'burn' &&
+        e.status !== 'rejected' &&
+        Date.now() - Date.parse(e.created_at) < QUIEBRE_FRESH_MS &&
+        !seen.includes(e.id),
+    )
+    if (fresh.length === 0) return
+    const e = fresh[0]
+    const who = (id: string) => detail.trip.members.find((m) => m.user_id === id)?.profile?.display_name ?? 'Alguien'
+    setBurnInfo({
+      title:
+        e.actor_id === user.id
+          ? `¡Quemaste a ${who(e.user_id)}!`
+          : e.user_id === user.id
+            ? `¡${who(e.actor_id)} te quemó!`
+            : `¡${who(e.actor_id)} quemó a ${who(e.user_id)}!`,
+      drink: `${e.emoji} ${e.title}`,
+      points: e.points,
+      victimId: e.user_id,
+      victimName: who(e.user_id),
+      byName: e.actor_id === user.id ? 'vos' : who(e.actor_id),
+    })
+    try {
+      localStorage.setItem(key, JSON.stringify([...fresh.map((x) => x.id), ...seen].slice(0, 100)))
+    } catch {
+      // sin localStorage: puede repetirse, no pasa nada
+    }
+  }, [detail, tripId, user.id, burnInfo])
 
   // Si se activó la Hora boliche hace poco y todavía no la viste, animación a pantalla completa
   const bolicheAt = detail?.trip.boliche_at ?? null
@@ -450,6 +563,14 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       <main className="trip-main">
         {user.isDemo && (
           <p className="demo-banner"><strong>Modo demo</strong> · Probá cargar tragos, misiones y quiebres.</p>
+        )}
+
+        {!user.isDemo && (
+          <NotificationsPrompt
+            api={api}
+            userId={me}
+            name={trip.members.find((m) => m.user_id === me)?.profile?.display_name ?? 'che'}
+          />
         )}
 
         {isOuting && outing === 'upcoming' && trip.trip_date && (
@@ -761,7 +882,8 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       })()}
 
       {quiebreTitle && <QuiebreOverlay title={quiebreTitle} onClose={() => setQuiebreTitle(null)} />}
-      {bolicheBy && !quiebreTitle && <BolicheOverlay by={bolicheBy} onClose={() => setBolicheBy(null)} />}
+      {burnInfo && !quiebreTitle && <BurnOverlay info={burnInfo} onClose={() => setBurnInfo(null)} />}
+      {bolicheBy && !quiebreTitle && !burnInfo && <BolicheOverlay by={bolicheBy} onClose={() => setBolicheBy(null)} />}
 
       {toast && (
         <div className="toast" role="status">

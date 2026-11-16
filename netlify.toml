@@ -10,3 +10,9 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# El service worker de las notificaciones siempre fresco
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

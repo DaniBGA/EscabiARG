@@ -286,3 +286,37 @@
 @media (prefers-reduced-motion: reduce) {
   .home { animation: none; }
 }
+
+/* Perfil y Amigos con su nombre abajo, para que se entienda qué tocar */
+.header-btn--labeled {
+  flex-direction: column;
+  gap: 3px;
+  width: auto;
+  min-width: 56px;
+  height: auto;
+  padding: 2px 4px;
+  border-radius: 12px;
+}
+
+.header-friends-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+}
+
+.header-btn--labeled:hover .header-friends-icon { border-color: var(--chalk-dim); }
+
+.header-label {
+  font-family: var(--font-label);
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}

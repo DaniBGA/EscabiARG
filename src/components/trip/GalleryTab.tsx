@@ -5,6 +5,8 @@ import { canShareFiles, fetchPhotos, photoFileName, savePhotos, type PhotoFile }
 import { friendlyError } from '../../lib/errors'
 import { formatDay, formatPoints, formatTime } from '../../lib/game'
 import Sheet from '../Sheet'
+import { isVideoPath } from '../../lib/media'
+import { MediaFull, MediaThumb } from './Media'
 
 type Props = {
   events: TripEvent[]
@@ -35,9 +37,13 @@ const matches = (f: Filter, kind: string) =>
 type Photo = { path: string; event: TripEvent }
 
 /** Todas las fotos del viaje: tragos, quebradas y pruebas de misiones */
+const GALLERY_PAGE = 60
+
 export default function GalleryTab({ events, members, userId, today, tripName }: Props) {
   const api = useApi()
   const [filter, setFilter] = useState<Filter>('all')
+  /** Con cientos de fotos se muestran de a tandas (bajar y dibujar todas traba el celu) */
+  const [limit, setLimit] = useState(GALLERY_PAGE)
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [open, setOpen] = useState<Photo | null>(null)
   /** "3/20" mientras baja las fotos */
@@ -47,7 +53,9 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
 
   const photos: Photo[] = events.flatMap((e) => e.photo_paths.map((path) => ({ path, event: e })))
   const shown = photos.filter((p) => matches(filter, p.event.kind))
-  const pathsKey = photos.map((p) => p.path).join('|')
+  const visible = shown.slice(0, limit)
+  // Solo se firman las que se ven (para guardar todas se piden aparte, ver collect)
+  const pathsKey = visible.map((p) => p.path).join('|')
 
   useEffect(() => {
     if (!pathsKey) return
@@ -73,7 +81,9 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
     const taken = new Set<string>()
     // En el archivo va el nombre de verdad (no "Vos")
     const realName = (id: string) => members.find((m) => m.user_id === id)?.profile?.display_name ?? 'Alguien'
-    const names = list.map((p) => photoFileName(p.event.created_at, realName(p.event.user_id), describe(p.event), taken))
+    const names = list.map((p) =>
+      photoFileName(p.event.created_at, realName(p.event.user_id), describe(p.event), taken, p.path.split('.').pop() ?? 'jpg'),
+    )
     const missing = list.filter((p) => !urls[p.path]).map((p) => p.path)
     const fresh = missing.length > 0 ? await api.getPhotoUrls(missing) : {}
     const links = list.map((p) => urls[p.path] ?? fresh[p.path])
@@ -107,7 +117,10 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
             type="button"
             className="chip-btn"
             aria-pressed={filter === f.key}
-            onClick={() => setFilter(f.key)}
+            onClick={() => {
+              setFilter(f.key)
+              setLimit(GALLERY_PAGE)
+            }}
           >
             {f.label} · {count(f.key)}
           </button>
@@ -135,11 +148,11 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
         <p className="muted center hand">Todavía no hay fotos acá. ¡Que empiece la joda!</p>
       ) : (
         <ul className="gallery-grid">
-          {shown.map((p) => (
+          {visible.map((p) => (
             <li key={p.path}>
               <button type="button" className="gallery-item" onClick={() => setOpen(p)} aria-label={`${name(p.event.user_id)}: ${p.event.title}`}>
                 {urls[p.path] ? (
-                  <img src={urls[p.path]} alt="" loading="lazy" />
+                  <MediaThumb path={p.path} url={urls[p.path]} alt={p.event.title} />
                 ) : (
                   <span className="feed-photo--loading" style={{ position: 'absolute', inset: 0 }} aria-hidden="true" />
                 )}
@@ -155,10 +168,16 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
         </ul>
       )}
 
-      <Sheet open={open !== null} title="Foto" onClose={() => setOpen(null)}>
+      {shown.length > visible.length && (
+        <button type="button" className="btn btn--ghost btn--block gallery-more" onClick={() => setLimit((n) => n + GALLERY_PAGE)}>
+          Ver más fotos ({shown.length - visible.length})
+        </button>
+      )}
+
+      <Sheet open={open !== null} title={open && isVideoPath(open.path) ? 'Video' : 'Foto'} onClose={() => setOpen(null)}>
         {open && (
           <>
-            {urls[open.path] && <img className="lightbox-img" src={urls[open.path]} alt={open.event.title} />}
+            {urls[open.path] && <MediaFull path={open.path} url={urls[open.path]} alt={open.event.title} />}
             <div className="gallery-caption">
               <p>
                 <strong>{name(open.event.user_id)}</strong>{' '}
@@ -183,7 +202,9 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
               disabled={progress !== null || !urls[open.path]}
               onClick={() => save([open], false)}
             >
-              {progress !== null ? 'Bajando…' : shareable ? '📲 Guardar / compartir foto' : '⬇️ Descargar foto'}
+              {progress !== null
+                ? 'Bajando…'
+                : `${shareable ? '📲 Guardar / compartir' : '⬇️ Descargar'} ${isVideoPath(open.path) ? 'video' : 'foto'}`}
             </button>
             {error && <p className="notice notice--error" role="alert">{error}</p>}
           </>

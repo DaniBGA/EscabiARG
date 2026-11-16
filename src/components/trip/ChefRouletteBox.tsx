@@ -172,7 +172,7 @@ export default function ChefRouletteBox({ detail, me, boliche = false, onChange 
             spin.chosen_user_id === me ? (
               <div className="sheet-stack">
                 <p className="muted">Cuando esté listo, avisá y el grupo vota si salió bueno.</p>
-                <PhotoPicker photos={photos} onChange={setPhotos} label={spin.kind === 'comida' ? 'Foto del plato (opcional)' : 'Foto del trago (opcional)'} />
+                <PhotoPicker photos={photos} onChange={setPhotos} label={spin.kind === 'comida' ? 'Foto o video del plato (opcional)' : 'Foto o video del trago (opcional)'} allowVideo />
                 <button type="button" className="btn btn--primary btn--block" disabled={busy}
                   onClick={async () => {
                     const ok = await run(async () => {

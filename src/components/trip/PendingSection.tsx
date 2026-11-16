@@ -4,8 +4,13 @@ import { useApi } from '../../lib/authContext'
 import { friendlyError } from '../../lib/errors'
 import { danceVoteUntil, eventTally, formatDuelTime, formatPoints, formatTime, myPendingItems } from '../../lib/game'
 import Sheet from '../Sheet'
+import { isVideoPath } from '../../lib/media'
+import { MediaFull, MediaThumb } from './Media'
 import ChallengeCard from './ChallengeCard'
 import QuiebreGuy from './QuiebreGuy'
+
+/** Fotos para validar que se muestran de entrada (con muchas, el celu se traba) */
+const PENDING_PAGE = 6
 
 type Props = {
   detail: TripDetail
@@ -20,7 +25,8 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
   e: TripEvent
   detail: TripDetail
   urls: Record<string, string>
-  onView: (url: string) => void
+  /** Abre la foto o el video en grande (recibe la ruta) */
+  onView: (path: string) => void
   onChange: (message?: string) => void
 }) {
   const api = useApi()
@@ -48,8 +54,8 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
       <div className={`validate-photos validate-photos--${Math.min(e.photo_paths.length, 3)}`}>
         {e.photo_paths.map((p) =>
           urls[p] ? (
-            <button key={p} type="button" className="validate-photo" onClick={() => onView(urls[p])}>
-              <img src={urls[p]} alt={`Foto de ${name(e.user_id)}`} />
+            <button key={p} type="button" className="validate-photo" onClick={() => onView(p)}>
+              <MediaThumb path={p} url={urls[p]} alt={`Prueba de ${name(e.user_id)}`} />
             </button>
           ) : (
             <span key={p} className="validate-photo feed-photo--loading" aria-hidden="true" />
@@ -74,7 +80,15 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
             </>
           ) : e.kind === 'casino' ? (
             <>
-              <strong>{name(e.user_id)}</strong> dice que en el casino: {e.detail}
+              {e.points > 0 ? (
+                <>
+                  🎰 <strong>{name(e.user_id)}</strong> dice que ganó el casino: {e.detail?.toLowerCase()}
+                </>
+              ) : (
+                <>
+                  <strong>{name(e.user_id)}</strong> dice que en el casino: {e.detail}
+                </>
+              )}
             </>
           ) : e.kind === 'burn' ? (
             <>
@@ -92,10 +106,15 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
           </span>
           {e.kind === 'infraction' ? (
             <span className="pts-chip is-zero">🙈 prenda</span>
-          ) : e.kind !== 'casino' ? (
+          ) : e.kind !== 'casino' || e.points > 0 ? (
             <span className={`pts-chip${e.points < 0 ? ' is-neg' : ''}`}>{formatPoints(e.points)}</span>
           ) : null}
         </p>
+        {e.kind === 'infraction' && (
+          <p className="validate-forfeit">
+            🙈 Prenda: {e.forfeit_text ? <strong>{e.forfeit_text}</strong> : 'le toca una al azar'}
+          </p>
+        )}
         <p className="muted small">
           {formatTime(e.created_at)} · {t.yes} de {t.needed} votos para validar
         </p>
@@ -154,7 +173,12 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
   }
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [viewing, setViewing] = useState<string | null>(null)
-  const items = myPendingItems(detail, me, now)
+  const [limit, setLimit] = useState(PENDING_PAGE)
+  const all = myPendingItems(detail, me, now)
+  // Lo que no es para validar siempre se ve; las fotos, de a poco
+  let shownEvents = 0
+  const items = all.filter((i) => i.type !== 'event' || ++shownEvents <= limit)
+  const hiddenEvents = all.length - items.length
   const pathsKey = items
     .flatMap((i) =>
       i.type === 'event' ? i.event.photo_paths : i.type === 'chefVote' && i.spin.photo_path ? [i.spin.photo_path] : [],
@@ -178,7 +202,7 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
   return (
     <section className="pending" aria-labelledby="pending-title">
       <h2 id="pending-title" className="pending-title">
-        <span className="sign">Pendientes</span> <span className="pending-count">{items.length}</span>
+        <span className="sign">Pendientes</span> <span className="pending-count">{all.length}</span>
       </h2>
       <p className="muted small">Mirá las fotos y decí si valen. Los puntos cuentan cuando los valida la mayoría.</p>
       <div className="pending-list">
@@ -208,8 +232,8 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
             <article key={item.spin.id} className="validate">
               {item.spin.photo_path && urls[item.spin.photo_path] && (
                 <div className="validate-photos validate-photos--1">
-                  <button type="button" className="validate-photo" onClick={() => setViewing(urls[item.spin.photo_path as string])}>
-                    <img src={urls[item.spin.photo_path]} alt="Lo que preparó" />
+                  <button type="button" className="validate-photo" onClick={() => setViewing(item.spin.photo_path)}>
+                    <MediaThumb path={item.spin.photo_path} url={urls[item.spin.photo_path]} alt="Lo que preparó" />
                   </button>
                 </div>
               )}
@@ -227,8 +251,8 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
             <QuickItem
               key={item.session.id}
               icon="🎰"
-              title="Terminó el casino: cargá cuánto ganaste o perdiste"
-              sub="Con foto de las fichas o el ticket."
+              title="Terminó el casino: ¿ganaste vos?"
+              sub="Si sos el que más plata tiene, subí la foto de cuánta te quedó."
               action="Cargar"
               onAction={() => onGo('casino')}
             />
@@ -286,10 +310,15 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
           ),
         )}
       </div>
+      {hiddenEvents > 0 && (
+        <button type="button" className="btn btn--ghost btn--block pending-more" onClick={() => setLimit((n) => n + PENDING_PAGE * 2)}>
+          Ver {Math.min(hiddenEvents, PENDING_PAGE * 2)} más (quedan {hiddenEvents} para validar)
+        </button>
+      )}
       {error && <p className="notice notice--error" role="alert">{error}</p>}
 
-      <Sheet open={viewing !== null} title="Foto" onClose={() => setViewing(null)}>
-        {viewing && <img className="lightbox-img" src={viewing} alt="Foto en grande" />}
+      <Sheet open={viewing !== null} title={viewing && isVideoPath(viewing) ? 'Video' : 'Foto'} onClose={() => setViewing(null)}>
+        {viewing && urls[viewing] && <MediaFull path={viewing} url={urls[viewing]} alt="Prueba en grande" />}
       </Sheet>
     </section>
   )

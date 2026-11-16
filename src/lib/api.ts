@@ -1,3 +1,4 @@
+import { extensionFor } from './media'
 import { listen, type LiveListener } from './realtime'
 import { requireSupabase } from './supabase'
 
@@ -5,12 +6,14 @@ export type Profile = {
   id: string
   display_name: string
   friend_code: string
+  /** Foto de perfil (enlace público); null = sin foto */
+  avatar_url?: string | null
 }
 
 export type TripMember = {
   user_id: string
   role: 'owner' | 'member'
-  profile: Pick<Profile, 'id' | 'display_name'> | null
+  profile: Pick<Profile, 'id' | 'display_name' | 'avatar_url'> | null
 }
 
 /** 'viaje' dura varios días; 'salida' (previa y salida) dura una sola jornada */
@@ -92,6 +95,8 @@ export type TripEvent = {
   created_at: string
   status: EventStatus
   ref_id?: string | null
+  /** Infracción: la prenda que eligió o escribió quien la reportó (null = al azar) */
+  forfeit_text?: string | null
 }
 
 // ---------- Infracciones, prendas, ruleta de cocinero y casino ----------
@@ -181,6 +186,8 @@ export type CasinoPlayer = {
   amount: number | null
   event_id: string | null
   reported_at: string | null
+  /** Tocó "Quedé en 0": perdió toda la plata */
+  busted_at?: string | null
 }
 
 /** Solo vienen los votos de fotos que todavía están por validarse */
@@ -268,6 +275,18 @@ export type TripDetail = {
 /** Operaciones de datos de la app (implementadas con Supabase o con la demo local) */
 export type Api = {
   getMyProfile(userId: string): Promise<Profile>
+  /** Sube (o con null, quita) tu foto de perfil. Devuelve el enlace nuevo */
+  setAvatar(userId: string, photo: Blob | null): Promise<string | null>
+
+  /** Notificaciones push: clave pública del servidor (null = push no configurado) */
+  pushPublicKey(): Promise<string | null>
+  savePushSubscription(endpoint: string, p256dh: string, auth: string): Promise<void>
+  deletePushSubscription(endpoint: string): Promise<void>
+  /** Hora (del servidor) del último cambio de la sala; null si no se puede saber */
+  tripPulse(tripId: string): Promise<string | null>
+  /** Versión de los términos que aceptó (0 = ninguna) */
+  getTermsVersion(userId: string): Promise<number>
+  acceptTerms(userId: string, version: number): Promise<void>
   updateDisplayName(userId: string, displayName: string): Promise<void>
   listFriends(userId: string): Promise<Profile[]>
   addFriendByCode(code: string): Promise<Profile>
@@ -313,7 +332,8 @@ export type Api = {
   archiveInfraction(id: string): Promise<void>
   saveForfeit(tripId: string, item: { id?: string; text: string; theme?: Theme }): Promise<void>
   archiveForfeit(id: string): Promise<void>
-  reportInfraction(tripId: string, userId: string, infractionId: string, photoPaths: string[]): Promise<void>
+  /** forfeit: la prenda elegida o escrita; null = que toque una al azar */
+  reportInfraction(tripId: string, userId: string, infractionId: string, photoPaths: string[], forfeit?: string | null): Promise<void>
   completeForfeit(forfeitId: string, photoPath: string | null): Promise<void>
   startChefSpin(tripId: string, kind: ChefKind): Promise<void>
   joinChefSpin(spinId: string): Promise<void>
@@ -323,7 +343,10 @@ export type Api = {
   startCasino(tripId: string, minutes: number): Promise<void>
   joinCasino(sessionId: string): Promise<void>
   cancelCasino(sessionId: string): Promise<void>
+  /** El ganador (terminado el tiempo) sube cuánta plata le quedó */
   reportCasino(sessionId: string, amount: number, photoPath: string): Promise<void>
+  /** "Quedé en 0": perdiste toda la plata */
+  bustCasino(sessionId: string): Promise<void>
   challengeDuel(tripId: string, opponentId: string, kind: DuelKind, seconds: number): Promise<void>
   respondDuel(duelId: string, accept: boolean): Promise<void>
   duelAction(duelId: string, action: 'finish' | 'shot' | 'give_up'): Promise<void>
@@ -343,12 +366,84 @@ function check<T>(result: { data: T; error: { message: string } | null }): T {
   return result.data
 }
 
+// La columna de la foto llega con una migración: si todavía no está, se pide sin ella
+let hasAvatarColumn = true
+const avatarCol = () => (hasAvatarColumn ? ', avatar_url' : '')
+const missingAvatar = (message: string) => /avatar_url|set_avatar/i.test(message)
+
+/** Hace la consulta con la foto; si la base no la tiene todavía, la repite sin ella */
+async function withAvatarFallback<T>(query: () => PromiseLike<{ data: T; error: { message: string } | null }>) {
+  const first = await query()
+  if (first.error && hasAvatarColumn && missingAvatar(first.error.message)) {
+    hasAvatarColumn = false
+    return check(await query())
+  }
+  return check(first)
+}
+
 async function getMyProfile(userId: string): Promise<Profile> {
   const sb = requireSupabase()
-  const profile = check(
-    await sb.from('profiles').select('id, display_name, friend_code').eq('id', userId).single(),
+  const profile = await withAvatarFallback(() =>
+    sb.from('profiles').select(`id, display_name, friend_code${avatarCol()}`).eq('id', userId).single(),
   )
-  return profile as Profile
+  return profile as unknown as Profile
+}
+
+const AVATAR_BUCKET = 'avatars'
+
+async function setAvatar(userId: string, photo: Blob | null): Promise<string | null> {
+  const sb = requireSupabase()
+  const bucket = sb.storage.from(AVATAR_BUCKET)
+  let url: string | null = null
+  let path: string | null = null
+  if (photo) {
+    path = `${userId}/${crypto.randomUUID()}.jpg`
+    const { error } = await bucket.upload(path, photo, { contentType: 'image/jpeg', upsert: false })
+    if (error) throw new Error(/bucket not found/i.test(error.message) ? 'AVATAR_NOT_READY' : error.message)
+    url = bucket.getPublicUrl(path).data.publicUrl
+  }
+  const { error } = await sb.rpc('set_avatar', { p_url: url })
+  if (error) {
+    if (path) await bucket.remove([path])
+    throw new Error(missingAvatar(error.message) || /could not find the function/i.test(error.message) ? 'AVATAR_NOT_READY' : error.message)
+  }
+  // Se borran las fotos viejas (si falla no pasa nada: solo ocupan lugar)
+  const { data: old } = await bucket.list(userId, { limit: 100 })
+  const stale = (old ?? []).map((f) => `${userId}/${f.name}`).filter((p) => p !== path)
+  if (stale.length > 0) await bucket.remove(stale)
+  return url
+}
+
+// Si la base todavía no tiene la migración de términos, se recuerda en este celular
+const termsKey = (userId: string) => `escabiarg:terms:${userId}`
+const localTerms = (userId: string) => {
+  try {
+    return Number(localStorage.getItem(termsKey(userId)) ?? 0) || 0
+  } catch {
+    return 0
+  }
+}
+const missingSchema = (message: string) => /terms_version|accept_terms|could not find|does not exist|schema cache/i.test(message)
+
+async function getTermsVersion(userId: string): Promise<number> {
+  const sb = requireSupabase()
+  const { data, error } = await sb.from('profiles').select('terms_version').eq('id', userId).maybeSingle()
+  if (error) {
+    if (missingSchema(error.message)) return localTerms(userId)
+    throw new Error(error.message)
+  }
+  return Math.max(Number((data as { terms_version?: number } | null)?.terms_version ?? 0), localTerms(userId))
+}
+
+async function acceptTerms(userId: string, version: number) {
+  const sb = requireSupabase()
+  const { error } = await sb.rpc('accept_terms', { p_version: version })
+  if (error && !missingSchema(error.message)) throw new Error(error.message)
+  try {
+    localStorage.setItem(termsKey(userId), String(version))
+  } catch {
+    // ya quedó guardado en la base
+  }
 }
 
 async function updateDisplayName(userId: string, displayName: string): Promise<void> {
@@ -358,12 +453,12 @@ async function updateDisplayName(userId: string, displayName: string): Promise<v
 
 async function listFriends(userId: string): Promise<Profile[]> {
   const sb = requireSupabase()
-  const rows = check(
-    await sb
+  const rows = (await withAvatarFallback(() =>
+    sb
       .from('friendships')
-      .select('friend:profiles!friendships_friend_id_fkey(id, display_name, friend_code)')
+      .select(`friend:profiles!friendships_friend_id_fkey(id, display_name, friend_code${avatarCol()})`)
       .eq('user_id', userId),
-  ) as unknown as { friend: Profile | null }[]
+  )) as unknown as { friend: Profile | null }[]
 
   return rows
     .map((r) => r.friend)
@@ -384,11 +479,11 @@ async function removeFriend(friendId: string): Promise<void> {
 
 async function listTrips(): Promise<Trip[]> {
   const sb = requireSupabase()
-  const rows = check(
-    await sb
+  const rows = await withAvatarFallback(() =>
+    sb
       .from('trips')
       .select(
-        'id, owner_id, name, trip_date, place, created_at, kind, day_cutoff_hour, members:trip_members(user_id, role, profile:profiles(id, display_name))',
+        `id, owner_id, name, trip_date, place, created_at, kind, day_cutoff_hour, members:trip_members(user_id, role, profile:profiles(id, display_name${avatarCol()}))`,
       )
       .order('created_at', { ascending: false }),
   )
@@ -397,7 +492,7 @@ async function listTrips(): Promise<Trip[]> {
 
 async function createTrip(trip: NewTrip): Promise<string> {
   const sb = requireSupabase()
-  return check(
+  const id = check(
     await sb.rpc('create_trip', {
       p_name: trip.name,
       p_trip_date: trip.tripDate,
@@ -406,6 +501,65 @@ async function createTrip(trip: NewTrip): Promise<string> {
       p_kind: trip.kind,
     }),
   ) as string
+  kickPush()
+  return id
+}
+
+// ---------- Notificaciones push ----------
+// La base arma los avisos; la función "push" (supabase/functions/push) los manda
+// a los celulares. Después de cada jugada se le avisa que hay cosas nuevas.
+
+let pushKey: Promise<string | null> | null = null
+let pushPausedUntil = 0
+let kickTimer = 0
+
+function pushPublicKey() {
+  pushKey ??= requireSupabase()
+    .functions.invoke('push', { body: { op: 'key' } })
+    .then(({ data, error }) => (error ? null : ((data as { publicKey?: string | null } | null)?.publicKey ?? null)))
+    .catch(() => null)
+    .then((key) => {
+      // Si todavía no está configurado se vuelve a preguntar más tarde
+      if (!key) window.setTimeout(() => (pushKey = null), 60_000)
+      return key
+    })
+  return pushKey
+}
+
+/** Pide que se manden los avisos pendientes (agrupa varias jugadas seguidas) */
+function kickPush() {
+  if (Date.now() < pushPausedUntil) return
+  window.clearTimeout(kickTimer)
+  kickTimer = window.setTimeout(async () => {
+    try {
+      const { error } = await requireSupabase().functions.invoke('push', { body: { op: 'flush' } })
+      // Función sin desplegar o con problemas: se reintenta en un rato
+      if (error) pushPausedUntil = Date.now() + 5 * 60_000
+    } catch {
+      pushPausedUntil = Date.now() + 5 * 60_000
+    }
+  }, 500)
+}
+
+// Si la base no tiene la función (migración sin correr), no se vuelve a preguntar
+let hasPulse = true
+
+async function tripPulse(tripId: string): Promise<string | null> {
+  if (!hasPulse) return null
+  const { data, error } = await requireSupabase().rpc('trip_pulse', { p_trip: tripId })
+  if (error) {
+    if (error.code === 'PGRST202' || /could not find the function/i.test(error.message)) hasPulse = false
+    return null
+  }
+  return (data as string | null) ?? null
+}
+
+async function savePushSubscription(endpoint: string, p256dh: string, auth: string) {
+  check(await requireSupabase().rpc('save_push_subscription', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth }))
+}
+
+async function deletePushSubscription(endpoint: string) {
+  check(await requireSupabase().rpc('delete_push_subscription', { p_endpoint: endpoint }))
 }
 
 // ---------- Juego del viaje (Supabase) ----------
@@ -451,7 +605,9 @@ async function deleteTrip(tripId: string) {
 
 async function addTripMembers(tripId: string, memberIds: string[]) {
   const sb = requireSupabase()
-  return check(await sb.rpc('add_trip_members', { p_trip: tripId, p_member_ids: memberIds })) as number
+  const added = check(await sb.rpc('add_trip_members', { p_trip: tripId, p_member_ids: memberIds })) as number
+  kickPush()
+  return added
 }
 
 const TRIP_COLUMNS =
@@ -607,10 +763,12 @@ async function updateRules(tripId: string, rules: TripRules) {
 
 async function uploadPhoto(tripId: string, userId: string, photo: Blob) {
   const sb = requireSupabase()
-  const path = `${tripId}/${userId}/${crypto.randomUUID()}.jpg`
+  // Foto (JPEG) o video de prueba (MP4 / WebM)
+  const type = (photo.type || 'image/jpeg').split(';')[0]
+  const path = `${tripId}/${userId}/${crypto.randomUUID()}.${extensionFor(type)}`
   const { error } = await sb.storage
     .from(PHOTO_BUCKET)
-    .upload(path, photo, { contentType: 'image/jpeg', upsert: false })
+    .upload(path, photo, { contentType: type, upsert: false })
   if (error) throw new Error(error.message)
   return path
 }
@@ -641,13 +799,25 @@ async function getPhotoUrls(paths: string[]) {
   return result
 }
 
+// Lecturas: no generan avisos
+const READ_ONLY_RPC = new Set(['my_pending', 'get_trip_state', 'server_time'])
+
 async function rpc(fn: string, args: Record<string, unknown>) {
   const sb = requireSupabase()
-  return check(await sb.rpc(fn, args))
+  const data = check(await sb.rpc(fn, args))
+  if (!READ_ONLY_RPC.has(fn)) kickPush()
+  return data
 }
 
 export const supabaseApi: Api = {
   getMyProfile,
+  setAvatar,
+  pushPublicKey,
+  savePushSubscription,
+  deletePushSubscription,
+  tripPulse,
+  getTermsVersion,
+  acceptTerms,
   updateDisplayName,
   listFriends,
   addFriendByCode,
@@ -715,8 +885,11 @@ export const supabaseApi: Api = {
   archiveInfraction: (id) => archiveListItem('trip_infractions', id),
   saveForfeit: (tripId, item) => saveListItem('trip_forfeits', tripId, { ...item, text: item.text.trim() }),
   archiveForfeit: (id) => archiveListItem('trip_forfeits', id),
-  async reportInfraction(tripId, userId, infractionId, photoPaths) {
-    await rpc('report_infraction', { p_trip: tripId, p_user: userId, p_infraction: infractionId, p_photos: photoPaths })
+  async reportInfraction(tripId, userId, infractionId, photoPaths, forfeit = null) {
+    const args: Record<string, unknown> = { p_trip: tripId, p_user: userId, p_infraction: infractionId, p_photos: photoPaths }
+    // Solo se manda si hay prenda elegida: así sigue andando con la base anterior a esta opción
+    if (forfeit) args.p_forfeit = forfeit
+    await rpc('report_infraction', args)
   },
   async completeForfeit(forfeitId, photoPath) {
     await rpc('complete_forfeit', { p_forfeit: forfeitId, p_photo: photoPath })
@@ -744,6 +917,9 @@ export const supabaseApi: Api = {
   },
   async cancelCasino(sessionId) {
     await rpc('cancel_casino', { p_session: sessionId })
+  },
+  async bustCasino(sessionId) {
+    await rpc('bust_casino', { p_session: sessionId })
   },
   async reportCasino(sessionId, amount, photoPath) {
     await rpc('report_casino', { p_session: sessionId, p_amount: amount, p_photo: photoPath })

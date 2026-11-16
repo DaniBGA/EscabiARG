@@ -29,11 +29,13 @@ function clock(ms: number) {
 
 const durationLabel = (min: number) => (min < 60 ? `${min} min` : `${min / 60} h`.replace('.5', ',5'))
 
-/** Casino: temporizador y, al terminar, cada uno carga cuánto ganó (con foto) */
+/**
+ * Casino: temporizador. El que pierde todo toca "Quedé en 0"; si queda uno solo con plata, gana.
+ * Si se termina el tiempo y quedan varios, el ganador sube la foto de cuánta plata le quedó.
+ */
 export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) {
   const api = useApi()
   const [minutes, setMinutes] = useState(60)
-  const [won, setWon] = useState(true)
   const [amount, setAmount] = useState('')
   const [photos, setPhotos] = useState<Blob[]>([])
   const [busy, setBusy] = useState(false)
@@ -46,7 +48,16 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
   const players = session ? detail.casinoPlayers.filter((p) => p.session_id === session.id) : []
   const mine = players.find((p) => p.user_id === me)
   const over = session ? session.status === 'reporting' || Date.parse(session.ends_at) <= now : false
-  const eventStatus = (eventId: string | null) => detail.events.find((e) => e.id === eventId)?.status
+  const alive = players.filter((p) => !p.busted_at)
+  const iAmAlive = Boolean(mine && !mine.busted_at)
+  // Reclamo del ganador (pendiente o validado) y los que el grupo rechazó
+  const claimOf = (eventId: string | null) => detail.events.find((e) => e.id === eventId && e.points > 0)
+  const claimant = players.find((p) => {
+    const e = claimOf(p.event_id)
+    return e && (e.status === 'pending' || e.status === 'approved')
+  })
+  const claim = claimant ? claimOf(claimant.event_id) : undefined
+  const canClaim = iAmAlive && !mine?.reported_at && !claimant
 
   const run = async (fn: () => Promise<void>, message?: string) => {
     setBusy(true)
@@ -66,11 +77,11 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
   const report = async (e: FormEvent) => {
     e.preventDefault()
     if (!session) return
-    const value = Math.round(Number(amount.replace(/\./g, '').replace(',', '.'))) * (won ? 1 : -1)
+    const value = Math.round(Number(amount.replace(/\./g, '').replace(',', '.')))
     const ok = await run(async () => {
       const [path] = await uploadPhotos(api, detail.trip.id, me, photos)
       await api.reportCasino(session.id, value, path)
-    }, '🎰 Resultado cargado: falta que lo valide el grupo')
+    }, '🎰 ¡Listo! Cuando el grupo lo valide, te llevás los puntos')
     if (ok) {
       setAmount('')
       setPhotos([])
@@ -79,7 +90,7 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
 
   const durations = isDemo ? [1, ...DURATIONS] : DURATIONS
   const parsedAmount = Number(amount.replace(/\./g, '').replace(',', '.'))
-  const amountValid = amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount >= 0
+  const amountValid = amount.trim() !== '' && Number.isFinite(parsedAmount) && parsedAmount > 0
 
   return (
     <section className="card-box card-box--casino" id="casino" aria-labelledby="casino-title">
@@ -88,8 +99,9 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
       {!session && (
         <>
           <p className="muted">
-            ¿Se van al casino? Pongan un tiempo: al terminar, cada uno carga cuánto ganó o perdió con foto de las fichas o el
-            ticket. El que más ganó se lleva <strong>+{detail.trip.casino_points}</strong>.
+            ¿Se van al casino? Pongan un tiempo. El que pierde toda la plata toca <strong>"Quedé en 0"</strong>: si queda uno
+            solo con plata, gana. Si se termina el tiempo, el que más plata tiene sube la foto y se lleva{' '}
+            <strong>+{detail.trip.casino_points}</strong>.
           </p>
           <div className="gallery-filters" role="group" aria-label="Duración">
             {durations.map((d) => (
@@ -122,13 +134,29 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
           <p className="muted small center">Termina a las {formatTime(session.ends_at)} · Premio +{session.prize}</p>
           <ul className="joined-list">
             {players.map((p) => (
-              <li key={p.user_id} className="is-in">
+              <li key={p.user_id} className={p.busted_at ? 'is-busted' : 'is-in'}>
                 <Avatar id={p.user_id} name={name(p.user_id)} size={30} />
                 <span>{name(p.user_id)}</span>
-                <span>🎲</span>
+                <span>{p.busted_at ? '💀 en 0' : '🎲'}</span>
               </li>
             ))}
           </ul>
+          {players.length > 1 && (
+            <p className="muted small center">
+              Siguen con plata {alive.length} de {players.length}. Si queda uno solo, gana al toque.
+            </p>
+          )}
+          {iAmAlive && (
+            <button type="button" className="btn btn--danger-solid btn--block casino-bust" disabled={busy}
+              onClick={() => {
+                if (window.confirm('¿Quedaste en 0? Perdiste toda la plata y quedás afuera del casino.')) {
+                  run(() => api.bustCasino(session.id), '💀 Quedaste en 0. ¡Otra vez será!')
+                }
+              }}>
+              💸 Quedé en 0
+            </button>
+          )}
+          {mine?.busted_at && <p className="chef-result">💀 Quedaste en 0</p>}
           <div className="vote-row">
             {!mine && (
               <button type="button" className="btn btn--primary" disabled={busy}
@@ -151,39 +179,42 @@ export default function CasinoBox({ detail, me, now, isDemo, onChange }: Props) 
       {session && over && (
         <>
           <p className="chef-result">¡Se terminó el tiempo!</p>
-          <p className="muted small center">Tienen hasta las {formatTime(session.report_until)} para cargar el resultado.</p>
-          {mine && !mine.reported_at && (
+          {claim && claimant ? (
+            <p className="notice">
+              ⏳ <strong>{name(claimant.user_id)}</strong> dice que ganó: {claim.detail?.toLowerCase()}. Falta que lo valide el grupo.
+            </p>
+          ) : (
+            <p className="muted small center">
+              {alive.length > 0
+                ? `Siguen con plata ${alive.map((p) => name(p.user_id)).join(', ')}. El que más tiene sube la foto antes de las ${formatTime(session.report_until)}.`
+                : 'Quedaron todos en 0.'}
+            </p>
+          )}
+          {canClaim && (
             <form className="sheet-stack casino-form" onSubmit={report}>
-              <div className="segmented casino-sign" role="group" aria-label="Resultado">
-                <button type="button" aria-pressed={won} onClick={() => setWon(true)}>🤑 Gané</button>
-                <button type="button" aria-pressed={!won} onClick={() => setWon(false)}>💸 Perdí</button>
-              </div>
+              <p className="step-label">¿Ganaste vos? Subí cuánta plata te quedó</p>
               <label className="field">
-                <span>¿Cuánto? (en pesos)</span>
-                <input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ''))} placeholder="Ej: 15000" required />
+                <span>¿Cuánta plata te quedó? (en pesos)</span>
+                <input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ''))} placeholder="Ej: 25000" required />
               </label>
               <PhotoPicker photos={photos} onChange={setPhotos} label="Foto de las fichas o el ticket" />
               <button type="submit" className="btn btn--primary btn--block" disabled={busy || !amountValid || photos.length === 0}>
-                Cargar {amountValid ? formatMoney(Math.round(parsedAmount) * (won ? 1 : -1)) : 'resultado'}
+                {amountValid ? `Gané: me quedaron ${formatMoney(Math.round(parsedAmount)).replace('+', '')}` : 'Cargar lo que me quedó'}
               </button>
             </form>
           )}
-          <ul className="casino-results">
-            {[...players]
-              .sort((a, b) => (b.amount ?? -Infinity) - (a.amount ?? -Infinity))
-              .map((p) => {
-                const st = eventStatus(p.event_id)
-                return (
-                  <li key={p.user_id}>
-                    <Avatar id={p.user_id} name={name(p.user_id)} size={30} />
-                    <span className="casino-name">{name(p.user_id)}</span>
-                    <span className={`casino-amount${(p.amount ?? 0) < 0 ? ' is-neg' : ''}`}>
-                      {p.amount === null ? 'sin cargar' : formatMoney(p.amount)}
-                    </span>
-                    <span title={st}>{p.amount === null ? '⏳' : st === 'approved' ? '✅' : st === 'rejected' ? '❌' : '🗳️'}</span>
-                  </li>
-                )
-              })}
+          {mine?.busted_at && <p className="muted small center">💀 Vos quedaste en 0.</p>}
+          {mine?.reported_at && !claimant && (
+            <p className="muted small center">❌ El grupo no validó tu resultado. Puede reclamarlo otro de los que siguen con plata.</p>
+          )}
+          <ul className="joined-list">
+            {players.map((p) => (
+              <li key={p.user_id} className={p.busted_at ? 'is-busted' : 'is-in'}>
+                <Avatar id={p.user_id} name={name(p.user_id)} size={30} />
+                <span>{name(p.user_id)}</span>
+                <span>{p.busted_at ? '💀 en 0' : p.user_id === claimant?.user_id ? '🏆' : '💰'}</span>
+              </li>
+            ))}
           </ul>
         </>
       )}

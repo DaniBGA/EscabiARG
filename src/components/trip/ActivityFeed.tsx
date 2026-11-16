@@ -3,6 +3,8 @@ import type { TripDetail, TripEvent, TripMember } from '../../lib/api'
 import { useApi } from '../../lib/authContext'
 import { eventTally, formatDay, formatPoints, formatTime } from '../../lib/game'
 import Sheet from '../Sheet'
+import { isVideoPath } from '../../lib/media'
+import { MediaFull, MediaThumb } from './Media'
 
 type Props = {
   events: TripEvent[]
@@ -72,6 +74,9 @@ export default function ActivityFeed({ events, eventVotes, members, userId, toda
                           ? `· 🔥 tomando ${e.title}`
                           : `· ${e.title}`}
                   </p>
+                  {e.kind === 'infraction' && e.forfeit_text && (
+                    <p className="feed-detail">🙈 Prenda elegida: {e.forfeit_text}</p>
+                  )}
                   {e.kind === 'burn' && (
                     <p className="feed-detail">{e.actor_id === userId ? 'Quemada tuya 😈' : `Quemada de ${name(e.actor_id)}`}</p>
                   )}
@@ -88,8 +93,8 @@ export default function ActivityFeed({ events, eventVotes, members, userId, toda
                     <div className="feed-photos">
                       {e.photo_paths.map((p) =>
                         urls[p] ? (
-                          <button key={p} type="button" className="feed-photo" onClick={() => setViewing(urls[p])}>
-                            <img src={urls[p]} alt={`Foto: ${e.title}`} loading="lazy" />
+                          <button key={p} type="button" className="feed-photo" onClick={() => setViewing(p)}>
+                            <MediaThumb path={p} url={urls[p]} alt={e.title} />
                           </button>
                         ) : (
                           <span key={p} className="feed-photo feed-photo--loading" aria-hidden="true" />
@@ -115,8 +120,8 @@ export default function ActivityFeed({ events, eventVotes, members, userId, toda
         </div>
       ))}
 
-      <Sheet open={viewing !== null} title="Foto" onClose={() => setViewing(null)}>
-        {viewing && <img className="lightbox-img" src={viewing} alt="Foto en grande" />}
+      <Sheet open={viewing !== null} title={viewing && isVideoPath(viewing) ? 'Video' : 'Foto'} onClose={() => setViewing(null)}>
+        {viewing && urls[viewing] && <MediaFull path={viewing} url={urls[viewing]} alt="Prueba en grande" />}
       </Sheet>
     </section>
   )

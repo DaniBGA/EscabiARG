@@ -1,10 +1,15 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import type { Profile } from '../lib/api'
 import { useApi, useAuth, type AppUser } from '../lib/authContext'
+import { squareAvatar, useAvatarUrl } from '../lib/avatars'
 import { friendlyError } from '../lib/errors'
 import Avatar from './Avatar'
 import FriendCode from './FriendCode'
 import Sheet from './Sheet'
+import NotificationsToggle from './NotificationsToggle'
+import TermsContent from './TermsContent'
+import CameraCapture from './trip/CameraCapture'
+import './TermsGate.css'
 import './ProfileSheet.css'
 
 type Props = {
@@ -13,14 +18,49 @@ type Props = {
   me: Profile
   user: AppUser
   onChange: () => void
+  /** Volver a ver el tutorial */
+  onShowTutorial?: () => void
 }
 
-export default function ProfileSheet({ open, onClose, me, user, onChange }: Props) {
+export default function ProfileSheet({ open, onClose, me, user, onChange, onShowTutorial }: Props) {
   const api = useApi()
   const auth = useAuth()
   const [name, setName] = useState(me.display_name)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showTerms, setShowTerms] = useState(false)
+  const [camera, setCamera] = useState(false)
+  const [photoBusy, setPhotoBusy] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const avatarUrl = useAvatarUrl(me.id)
+
+  const changePhoto = async (source: Blob | null) => {
+    setError(null)
+    let preview: string | null = null
+    try {
+      const photo = source ? await squareAvatar(source) : null
+      preview = photo ? URL.createObjectURL(photo) : ''
+      setPhotoBusy(preview)
+      await api.setAvatar(me.id, photo)
+      onChange()
+    } catch (err) {
+      setError(friendlyError(err))
+    } finally {
+      setPhotoBusy(null)
+      if (preview) URL.revokeObjectURL(preview)
+    }
+  }
+
+  const pickFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Elegí una imagen.')
+      return
+    }
+    changePhoto(file)
+  }
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
@@ -56,13 +96,46 @@ export default function ProfileSheet({ open, onClose, me, user, onChange }: Prop
       }}
     >
       <div className="profile-top">
-        <Avatar id={me.id} name={me.display_name} size={64} />
+        <button
+          type="button"
+          className={photoBusy !== null ? 'profile-photo is-busy' : 'profile-photo'}
+          onClick={() => setCamera(true)}
+          disabled={photoBusy !== null}
+          aria-label={avatarUrl ? 'Cambiar foto de perfil' : 'Poner foto de perfil'}
+        >
+          <Avatar id={me.id} name={me.display_name} size={84} photo={photoBusy === null ? undefined : photoBusy || null} />
+          <span className="profile-photo-badge" aria-hidden="true">📷</span>
+        </button>
         <div>
           <p className="profile-name">{me.display_name}</p>
           {user.isGuest && <p className="profile-badge">Invitado</p>}
           {user.isDemo && <p className="profile-badge">Demo</p>}
         </div>
       </div>
+
+      <div className="profile-photo-actions">
+        <button type="button" className="profile-chip" onClick={() => setCamera(true)} disabled={photoBusy !== null}>
+          📸 Sacar foto
+        </button>
+        <button type="button" className="profile-chip" onClick={() => fileRef.current?.click()} disabled={photoBusy !== null}>
+          🖼️ Elegir de la galería
+        </button>
+        {avatarUrl && (
+          <button type="button" className="profile-chip profile-chip--danger" onClick={() => changePhoto(null)} disabled={photoBusy !== null}>
+            Quitar
+          </button>
+        )}
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickFile} />
+      </div>
+      {photoBusy !== null && <p className="profile-photo-status">{photoBusy ? 'Subiendo tu foto…' : 'Quitando tu foto…'}</p>}
+
+      <CameraCapture
+        open={camera}
+        title="Tu foto de perfil"
+        initialFacing="user"
+        onClose={() => setCamera(false)}
+        onCapture={(blob) => changePhoto(blob)}
+      />
 
       <form className="profile-form" onSubmit={save}>
         <label className="field">
@@ -87,6 +160,22 @@ export default function ProfileSheet({ open, onClose, me, user, onChange }: Prop
       <div className="profile-code">
         <FriendCode code={me.friend_code} />
       </div>
+
+      <NotificationsToggle api={api} userId={me.id} name={me.display_name} isDemo={user.isDemo} />
+
+      {onShowTutorial && (
+        <button type="button" className="btn btn--ghost btn--block profile-terms" onClick={onShowTutorial}>
+          🎓 Ver el tutorial
+        </button>
+      )}
+      <button type="button" className="btn btn--ghost btn--block profile-terms" onClick={() => setShowTerms(true)}>
+        ⚠️ Términos y condiciones
+      </button>
+      <Sheet open={showTerms} title="Términos y condiciones" onClose={() => setShowTerms(false)}>
+        <div className="terms-sheet">
+          <TermsContent />
+        </div>
+      </Sheet>
 
       <button type="button" className="btn btn--danger btn--block profile-signout" onClick={signOut}>
         {user.isDemo ? 'Salir de la demo' : 'Cerrar sesión'}
