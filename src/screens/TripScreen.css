@@ -2543,3 +2543,7 @@
 }
 
 .validate-forfeit { margin: 4px 0 2px; font-size: 0.92rem; }
+
+/* ---------- Casino: "Quedé en 0" ---------- */
+.joined-list li.is-busted { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255, 139, 118, 0.7); }
+.casino-bust { margin-top: 10px; }

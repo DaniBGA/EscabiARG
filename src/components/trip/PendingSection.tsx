@@ -77,7 +77,15 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
             </>
           ) : e.kind === 'casino' ? (
             <>
-              <strong>{name(e.user_id)}</strong> dice que en el casino: {e.detail}
+              {e.points > 0 ? (
+                <>
+                  🎰 <strong>{name(e.user_id)}</strong> dice que ganó el casino: {e.detail?.toLowerCase()}
+                </>
+              ) : (
+                <>
+                  <strong>{name(e.user_id)}</strong> dice que en el casino: {e.detail}
+                </>
+              )}
             </>
           ) : e.kind === 'burn' ? (
             <>
@@ -95,7 +103,7 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
           </span>
           {e.kind === 'infraction' ? (
             <span className="pts-chip is-zero">🙈 prenda</span>
-          ) : e.kind !== 'casino' ? (
+          ) : e.kind !== 'casino' || e.points > 0 ? (
             <span className={`pts-chip${e.points < 0 ? ' is-neg' : ''}`}>{formatPoints(e.points)}</span>
           ) : null}
         </p>
@@ -235,8 +243,8 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
             <QuickItem
               key={item.session.id}
               icon="🎰"
-              title="Terminó el casino: cargá cuánto ganaste o perdiste"
-              sub="Con foto de las fichas o el ticket."
+              title="Terminó el casino: ¿ganaste vos?"
+              sub="Si sos el que más plata tiene, subí la foto de cuánta te quedó."
               action="Cargar"
               onAction={() => onGo('casino')}
             />

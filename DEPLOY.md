@@ -51,6 +51,7 @@ Necesitás:
 > | 9 | `20261112000000_viajes_y_boliche.sql` |
 > | 10 | `20261116000000_prenda_elegida.sql` |
 > | 11 | `20261117000000_videos.sql` |
+> | 12 | `20261118000000_casino_quede_en_0.sql` |
 
 ### 2.b Tiempo real
 

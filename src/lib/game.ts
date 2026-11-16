@@ -231,7 +231,13 @@ export function myPendingItems(detail: TripDetail, me: string, now = Date.now())
   for (const c of detail.casinoSessions) {
     const mine = detail.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === me)
     const over = c.status === 'reporting' || (c.status === 'running' && Date.parse(c.ends_at) <= now)
-    if (mine && !mine.reported_at && over && Date.parse(c.report_until) > now) {
+    // Terminado el tiempo, carga el resultado solo el que sigue con plata (y si nadie reclamó todavía)
+    const claimed = detail.casinoPlayers.some((p) => {
+      if (p.session_id !== c.id) return false
+      const e = detail.events.find((x) => x.id === p.event_id)
+      return Boolean(e && e.points > 0 && (e.status === 'pending' || e.status === 'approved'))
+    })
+    if (mine && !mine.reported_at && !mine.busted_at && !claimed && over && Date.parse(c.report_until) > now) {
       items.push({ type: 'casinoReport', session: c })
     }
   }

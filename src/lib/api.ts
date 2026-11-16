@@ -184,6 +184,8 @@ export type CasinoPlayer = {
   amount: number | null
   event_id: string | null
   reported_at: string | null
+  /** Tocó "Quedé en 0": perdió toda la plata */
+  busted_at?: string | null
 }
 
 /** Solo vienen los votos de fotos que todavía están por validarse */
@@ -327,7 +329,10 @@ export type Api = {
   startCasino(tripId: string, minutes: number): Promise<void>
   joinCasino(sessionId: string): Promise<void>
   cancelCasino(sessionId: string): Promise<void>
+  /** El ganador (terminado el tiempo) sube cuánta plata le quedó */
   reportCasino(sessionId: string, amount: number, photoPath: string): Promise<void>
+  /** "Quedé en 0": perdiste toda la plata */
+  bustCasino(sessionId: string): Promise<void>
   challengeDuel(tripId: string, opponentId: string, kind: DuelKind, seconds: number): Promise<void>
   respondDuel(duelId: string, accept: boolean): Promise<void>
   duelAction(duelId: string, action: 'finish' | 'shot' | 'give_up'): Promise<void>
@@ -753,6 +758,9 @@ export const supabaseApi: Api = {
   },
   async cancelCasino(sessionId) {
     await rpc('cancel_casino', { p_session: sessionId })
+  },
+  async bustCasino(sessionId) {
+    await rpc('bust_casino', { p_session: sessionId })
   },
   async reportCasino(sessionId, amount, photoPath) {
     await rpc('report_casino', { p_session: sessionId, p_amount: amount, p_photo: photoPath })

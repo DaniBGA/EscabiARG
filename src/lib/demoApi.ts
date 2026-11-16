@@ -696,35 +696,43 @@ function botPace(duelId: string, botId: string) {
   return Math.abs(h) % 1000 / 1000
 }
 
+/** El reclamo del ganador (pendiente o validado) */
+const casinoClaim = (data: DemoData, sessionId: string) =>
+  data.casinoPlayers
+    .filter((p) => p.session_id === sessionId)
+    .map((p) => data.events.find((e) => e.id === p.event_id))
+    .find((e) => e && e.points > 0 && (e.status === 'pending' || e.status === 'approved'))
+
+/** Igual que la base: el último con plata gana; si no, el ganador sube la foto */
 function resolveCasino(data: DemoData, c: CasinoSession, now = Date.now()) {
   if (c.status === 'done' || c.status === 'cancelled') return
+  const players = data.casinoPlayers.filter((p) => p.session_id === c.id)
+  const alive = players.filter((p) => !p.busted_at)
+  if (players.length >= 2 && alive.length === 1) {
+    addEvent(data, {
+      trip_id: c.trip_id,
+      user_id: alive[0].user_id,
+      actor_id: alive[0].user_id,
+      kind: 'casino',
+      points: c.prize,
+      title: 'Ganó el casino',
+      emoji: '🎰',
+      detail: 'Fue el último que quedó con plata 🤑',
+      ref_id: c.id,
+    })
+    c.status = 'done'
+    return
+  }
+  if (players.length >= 1 && alive.length === 0) {
+    c.status = 'done'
+    return
+  }
   if (c.status === 'running') {
     if (now < Date.parse(c.ends_at)) return
     c.status = 'reporting'
   }
-  const players = data.casinoPlayers.filter((p) => p.session_id === c.id)
-  const eventOf = (p: CasinoPlayer) => data.events.find((e) => e.id === p.event_id)
-  const missing = players.some((p) => !p.reported_at)
-  const pending = players.some((p) => eventOf(p)?.status === 'pending')
-  if ((missing || pending) && now < Date.parse(c.report_until)) return
-  const approved = players.filter((p) => eventOf(p)?.status === 'approved' && p.amount !== null)
-  const top = Math.max(-Infinity, ...approved.map((p) => p.amount as number))
-  if (top > 0) {
-    for (const p of approved.filter((x) => x.amount === top)) {
-      addEvent(data, {
-        trip_id: c.trip_id,
-        user_id: p.user_id,
-        actor_id: p.user_id,
-        kind: 'casino',
-        points: c.prize,
-        title: 'Ganó el casino',
-        emoji: '🎰',
-        detail: formatMoney(top),
-        ref_id: c.id,
-      })
-    }
-  }
-  c.status = 'done'
+  const claim = casinoClaim(data, c.id)
+  if (claim?.status === 'approved' || now >= Date.parse(c.report_until)) c.status = 'done'
 }
 
 function resolveChallenge(data: DemoData, c: MissionChallenge, now = Date.now()) {
@@ -870,17 +878,29 @@ function botsAct(data: DemoData, now = Date.now()) {
           data.casinoPlayers.push({ session_id: c.id, trip_id: trip.id, user_id: bot, amount: null, event_id: null, reported_at: null })
         }
         const player = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === bot)
-        if (c.status === 'reporting' && player && !player.reported_at && now - Date.parse(c.ends_at) >= 3000 + i * 2000) {
-          const amount = Math.round((Math.random() * 30000 - 10000) / 500) * 500
+        // Algunos de los de ejemplo se funden a mitad de camino
+        const pace = botPace(c.id, bot)
+        const span = Date.parse(c.ends_at) - Date.parse(c.starts_at)
+        if (c.status === 'running' && player && !player.busted_at && pace < 0.5 &&
+            now - Date.parse(c.starts_at) >= span * (0.3 + pace)) {
+          player.busted_at = iso(now)
+          resolveCasino(data, c, now)
+        }
+        // Si vos quedaste en 0, el primero de ejemplo que sigue con plata reclama
+        const me = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === data.me.id)
+        const myTurnOver = !me || me.busted_at || me.reported_at
+        if (c.status === 'reporting' && player && !player.busted_at && !player.reported_at && myTurnOver &&
+            !casinoClaim(data, c.id) && now - Date.parse(c.ends_at) >= 3000 + i * 2000) {
+          const amount = Math.round((5000 + Math.random() * 30000) / 500) * 500
           const e = addEvent(data, {
             trip_id: trip.id,
             user_id: bot,
             actor_id: bot,
             kind: 'casino',
-            points: 0,
-            title: 'Resultado en el casino',
+            points: c.prize,
+            title: 'Ganó el casino',
             emoji: '🎰',
-            detail: formatMoney(amount),
+            detail: `Le quedaron ${formatMoney(amount).replace('+', '')}`,
             photo_paths: [seedPhotoPath('🎰', 280)],
             status: 'pending',
             ref_id: c.id,
@@ -1720,6 +1740,22 @@ export const demoApi: Api = {
     save(data)
   },
 
+  async bustCasino(sessionId) {
+    await wait()
+    const data = load()
+    const c = data.casinoSessions.find((x) => x.id === sessionId)
+    if (!c) throw new Error('CASINO_NOT_FOUND')
+    tripFor(data, c.trip_id)
+    resolveCasino(data, c)
+    if (c.status !== 'running') throw new Error('CASINO_CLOSED')
+    const player = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === data.me.id)
+    if (!player) throw new Error('CASINO_NOT_JOINED')
+    if (player.busted_at) throw new Error('CASINO_ALREADY_BUSTED')
+    player.busted_at = iso(Date.now())
+    resolveCasino(data, c)
+    save(data)
+  },
+
   async reportCasino(sessionId, amount, photoPath) {
     await wait()
     const data = load()
@@ -1731,18 +1767,20 @@ export const demoApi: Api = {
     if (c.status !== 'reporting') throw new Error('CASINO_CLOSED')
     const player = data.casinoPlayers.find((p) => p.session_id === c.id && p.user_id === data.me.id)
     if (!player) throw new Error('CASINO_NOT_JOINED')
+    if (player.busted_at) throw new Error('CASINO_BUSTED')
     if (player.reported_at) throw new Error('CASINO_ALREADY_REPORTED')
-    if (!Number.isInteger(amount) || Math.abs(amount) > 100_000_000) throw new Error('INVALID_AMOUNT')
+    if (casinoClaim(data, c.id)) throw new Error('CASINO_CLAIM_PENDING')
+    if (!Number.isInteger(amount) || amount <= 0 || amount > 100_000_000) throw new Error('INVALID_AMOUNT')
     checkPhoto(data, c.trip_id, photoPath)
     const e = addEvent(data, {
       trip_id: c.trip_id,
       user_id: data.me.id,
       actor_id: data.me.id,
       kind: 'casino',
-      points: 0,
-      title: 'Resultado en el casino',
+      points: c.prize,
+      title: 'Ganó el casino',
       emoji: '🎰',
-      detail: formatMoney(amount),
+      detail: `Le quedaron ${formatMoney(amount).replace('+', '')}`,
       photo_paths: [photoPath],
       status: 'pending',
       ref_id: c.id,
