@@ -16,6 +16,7 @@ const MESSAGES: Record<string, string> = {
   BURN_RECENT: 'A esa persona ya la quemaron por eso hace un ratito.',
   PHOTO_REQUIRED: 'La foto no es válida: sacá una nueva en el momento.',
   PHOTO_INVALID: 'No pudimos leer la foto. Probá de nuevo.',
+  ACCOUNT_GONE: 'Tu cuenta ya no existe. Volvé a entrar.',
   AVATAR_INVALID: 'No pudimos usar esa imagen. Probá con otra foto.',
   AVATAR_NOT_READY: 'Las fotos de perfil todavía no están activadas en el servidor (falta correr la migración).',
   VIDEO_TOO_BIG: 'El video quedó muy pesado. Grabá uno más corto.',

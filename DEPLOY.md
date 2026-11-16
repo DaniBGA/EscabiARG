@@ -410,6 +410,25 @@ Si todo eso anduvo, ya está online. 🍻
 - Si en el futuro hay migraciones nuevas en `supabase/migrations/`, hay que correrlas
   en el SQL Editor (en orden) **antes** de que llegue el deploy que las usa.
 
+## Empezar de cero (borrar todos los datos)
+
+Para dejar la app como recién instalada: sin cuentas (tampoco invitados), viajes,
+fotos ni nada de lo que se usó. Las tablas, funciones y catálogos (misiones y cartas)
+quedan. **No se puede deshacer.**
+
+1. **Fotos y videos:** Supabase → **Storage** → bucket **`trip-photos`** → menú **⋮** →
+   **Empty bucket** → confirmá. Repetí con **`avatars`** (fotos de perfil).
+   (Los archivos se borran desde acá: Supabase no deja borrarlos con SQL.)
+2. **Datos:** **SQL Editor** → pegá
+   [`supabase/borrar_todos_los_datos.sql`](supabase/borrar_todos_los_datos.sql) → **Run**.
+   Al final muestra una tabla: cuentas, perfiles, viajes, eventos y avisos tienen que
+   dar **0**.
+3. **Los celulares** que tenían la app abierta se dan cuenta solos de que la cuenta ya
+   no existe y vuelven al login (no hace falta que nadie haga nada).
+
+> ¿Solo querés borrar a los **invitados** (y lo que crearon)? En el SQL Editor:
+> `delete from auth.users where is_anonymous;`
+
 ## Problemas comunes
 
 | Síntoma | Qué pasa | Solución |

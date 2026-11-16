@@ -47,9 +47,14 @@ export default function Home({ user }: { user: AppUser }) {
     try {
       await Promise.all([loadProfile(), loadFriends(), loadTrips()])
     } catch (err) {
+      // Tu cuenta ya no existe: se cierra la sesión y volvés al inicio
+      if (err instanceof Error && err.message === 'ACCOUNT_GONE') {
+        void signOut()
+        return
+      }
       setError(friendlyError(err))
     }
-  }, [loadProfile, loadFriends, loadTrips])
+  }, [loadProfile, loadFriends, loadTrips, signOut])
 
   const [live, setLive] = useState(false)
   const pendingTimer = useRef<number | undefined>(undefined)

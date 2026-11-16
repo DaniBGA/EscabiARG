@@ -391,8 +391,10 @@ async function withAvatarFallback<T>(
 async function getMyProfile(userId: string): Promise<Profile> {
   const sb = requireSupabase()
   const profile = await withAvatarFallback((a) =>
-    sb.from('profiles').select(`id, display_name, friend_code${avatarCol(a)}`).eq('id', userId).single(),
+    sb.from('profiles').select(`id, display_name, friend_code${avatarCol(a)}`).eq('id', userId).maybeSingle(),
   )
+  // La cuenta se borró (ej: se vació la base) pero el celular tenía la sesión guardada
+  if (!profile) throw new Error('ACCOUNT_GONE')
   return profile as unknown as Profile
 }
 
