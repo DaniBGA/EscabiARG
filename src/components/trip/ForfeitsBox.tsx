@@ -210,8 +210,8 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true, bo
             )}
           </div>
           <div>
-            <p className="step-label">4. Prueba (opcional, hasta 3 fotos)</p>
-            <PhotoPicker photos={photos} onChange={setPhotos} max={3} label="Sacar foto" />
+            <p className="step-label">4. Prueba (opcional, hasta 3 fotos o videos)</p>
+            <PhotoPicker photos={photos} onChange={setPhotos} max={3} label="Foto o video" allowVideo />
           </div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
           <button type="button" className="btn btn--primary btn--block" disabled={busy || !who || !infraction || !forfeitReady} onClick={report}>
@@ -225,7 +225,7 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true, bo
           <p className="mission-text">{doing?.forfeit}</p>
           <div>
             <p className="step-label">Prueba (opcional)</p>
-            <PhotoPicker photos={photos} onChange={setPhotos} label="Sacar foto" />
+            <PhotoPicker photos={photos} onChange={setPhotos} label="Foto o video de prueba" allowVideo />
           </div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
           <button type="button" className="btn btn--primary btn--block" disabled={busy} onClick={complete}>

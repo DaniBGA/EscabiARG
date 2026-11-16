@@ -45,6 +45,7 @@ import {
   outingState,
   tripDay,
 } from './game'
+import { extensionFor } from './media'
 import { BOLICHE_MISSIONS, MISSIONS } from './missions'
 import { BOLICHE_FORFEITS, BOLICHE_INFRACTIONS, SUGGESTED_FORFEITS, SUGGESTED_INFRACTIONS, formatMoney } from './lists'
 
@@ -1160,7 +1161,7 @@ export const demoApi: Api = {
   },
 
   async uploadPhoto(tripId, _userId, photo) {
-    const path = `demo/${tripId}/${newId()}.jpg`
+    const path = `demo/${tripId}/${newId()}.${extensionFor((photo.type || 'image/jpeg').split(';')[0])}`
     await saveDemoPhoto(path, photo)
     return path
   },

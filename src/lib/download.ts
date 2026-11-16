@@ -88,7 +88,7 @@ export async function makeZip(files: PhotoFile[], now = new Date()): Promise<Blo
 // ---------- Guardar ----------
 
 /** Nombre de archivo sin caracteres raros: "2026-11-04 23.17 Beto - Fernet.jpg" */
-export function photoFileName(createdAt: string, who: string, what: string, taken: Set<string>) {
+export function photoFileName(createdAt: string, who: string, what: string, taken: Set<string>, ext = 'jpg') {
   const d = new Date(createdAt)
   const pad = (n: number) => String(n).padStart(2, '0')
   const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}`
@@ -100,8 +100,8 @@ export function photoFileName(createdAt: string, who: string, what: string, take
       .replace(/\s+/g, ' ')
       .trim()
   const base = clean(`${stamp} ${who} - ${what}`).slice(0, 80) || stamp
-  let name = `${base}.jpg`
-  for (let i = 2; taken.has(name); i++) name = `${base} (${i}).jpg`
+  let name = `${base}.${ext}`
+  for (let i = 2; taken.has(name); i++) name = `${base} (${i}).${ext}`
   taken.add(name)
   return name
 }
@@ -129,7 +129,7 @@ export async function fetchPhotos(urls: string[], onProgress?: (done: number) =>
 }
 
 function toFile(f: PhotoFile) {
-  return new File([f.blob], f.name, { type: f.blob.type || 'image/jpeg' })
+  return new File([f.blob], f.name, { type: f.blob.type || (f.name.endsWith('.jpg') ? 'image/jpeg' : 'application/octet-stream') })
 }
 
 /** ¿El celular deja compartir/guardar estas fotos con el menú del sistema? */

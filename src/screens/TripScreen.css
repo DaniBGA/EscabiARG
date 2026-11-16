@@ -1379,6 +1379,145 @@
 .camera-shutter:disabled { opacity: 0.4; cursor: wait; }
 .camera-wide { flex: 1; }
 
+/* Cámara: fila de controles, Foto/Video, flash y grabación */
+.camera-bottom--live {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.camera-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.camera-top-actions { display: flex; gap: 10px; }
+
+.camera-torch.is-on {
+  border-color: #ffe14d;
+  background: rgba(255, 225, 77, 0.25);
+  box-shadow: 0 0 16px rgba(255, 225, 77, 0.6);
+}
+
+.camera-modes {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.camera-mode {
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: var(--font-label);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.camera-mode.is-selected { background: rgba(255, 255, 255, 0.16); color: #ffe14d; }
+.camera-mode:disabled { opacity: 0.4; }
+
+.camera-tip {
+  margin: 0;
+  min-height: 1.2em;
+  text-align: center;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.8;
+}
+
+/* Botón de grabar: se mantiene apretado; el anillo marca los 15 s */
+.camera-shutter--video {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.camera-shutter--video svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.camera-ring-bg { fill: none; stroke: #fff; stroke-width: 6; opacity: 0.9; }
+.camera-ring { fill: none; stroke: #ff3b30; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.1s linear; }
+
+.camera-rec-core {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #ff3b30;
+  transition: width 0.15s ease, height 0.15s ease, border-radius 0.15s ease;
+}
+
+.camera-shutter--video.is-recording { transform: scale(1.12); }
+.camera-shutter--video.is-recording .camera-rec-core { width: 30px; height: 30px; border-radius: 8px; }
+.camera-shutter--video:active { transform: scale(1.12); }
+
+.camera-rec {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  font-family: var(--font-label);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  transform: translateX(-50%);
+}
+
+.camera-rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff3b30;
+  animation: rec-blink 1s steps(1) infinite;
+}
+
+@keyframes rec-blink { 50% { opacity: 0.2; } }
+
+/* Videos en miniatura y en grande */
+.media-video { position: relative; display: block; width: 100%; height: 100%; }
+.media-video video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.media-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding-left: 3px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.95rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.photo-preview video { width: 100%; height: 100%; object-fit: cover; }
+
 /* ---------- Pendientes (comandas) ---------- */
 .pending {
   margin-top: 26px;

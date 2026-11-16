@@ -4,6 +4,8 @@ import { useApi } from '../../lib/authContext'
 import { friendlyError } from '../../lib/errors'
 import { danceVoteUntil, eventTally, formatDuelTime, formatPoints, formatTime, myPendingItems } from '../../lib/game'
 import Sheet from '../Sheet'
+import { isVideoPath } from '../../lib/media'
+import { MediaFull, MediaThumb } from './Media'
 import ChallengeCard from './ChallengeCard'
 import QuiebreGuy from './QuiebreGuy'
 
@@ -20,7 +22,8 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
   e: TripEvent
   detail: TripDetail
   urls: Record<string, string>
-  onView: (url: string) => void
+  /** Abre la foto o el video en grande (recibe la ruta) */
+  onView: (path: string) => void
   onChange: (message?: string) => void
 }) {
   const api = useApi()
@@ -48,8 +51,8 @@ function EventToValidate({ e, detail, urls, onView, onChange }: {
       <div className={`validate-photos validate-photos--${Math.min(e.photo_paths.length, 3)}`}>
         {e.photo_paths.map((p) =>
           urls[p] ? (
-            <button key={p} type="button" className="validate-photo" onClick={() => onView(urls[p])}>
-              <img src={urls[p]} alt={`Foto de ${name(e.user_id)}`} />
+            <button key={p} type="button" className="validate-photo" onClick={() => onView(p)}>
+              <MediaThumb path={p} url={urls[p]} alt={`Prueba de ${name(e.user_id)}`} />
             </button>
           ) : (
             <span key={p} className="validate-photo feed-photo--loading" aria-hidden="true" />
@@ -213,8 +216,8 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
             <article key={item.spin.id} className="validate">
               {item.spin.photo_path && urls[item.spin.photo_path] && (
                 <div className="validate-photos validate-photos--1">
-                  <button type="button" className="validate-photo" onClick={() => setViewing(urls[item.spin.photo_path as string])}>
-                    <img src={urls[item.spin.photo_path]} alt="Lo que preparó" />
+                  <button type="button" className="validate-photo" onClick={() => setViewing(item.spin.photo_path)}>
+                    <MediaThumb path={item.spin.photo_path} url={urls[item.spin.photo_path]} alt="Lo que preparó" />
                   </button>
                 </div>
               )}
@@ -293,8 +296,8 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
       </div>
       {error && <p className="notice notice--error" role="alert">{error}</p>}
 
-      <Sheet open={viewing !== null} title="Foto" onClose={() => setViewing(null)}>
-        {viewing && <img className="lightbox-img" src={viewing} alt="Foto en grande" />}
+      <Sheet open={viewing !== null} title={viewing && isVideoPath(viewing) ? 'Video' : 'Foto'} onClose={() => setViewing(null)}>
+        {viewing && urls[viewing] && <MediaFull path={viewing} url={urls[viewing]} alt="Prueba en grande" />}
       </Sheet>
     </section>
   )

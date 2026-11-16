@@ -142,7 +142,7 @@ export default function MissionCard({ tripId, userId, rules, mission, underVote,
           <p className="mission-text">{mission?.mission}</p>
           <div>
             <p className="step-label">Prueba (opcional)</p>
-            <PhotoPicker photos={photos} onChange={setPhotos} label="Sacar foto de prueba" />
+            <PhotoPicker photos={photos} onChange={setPhotos} label="Foto o video de prueba" allowVideo />
           </div>
           {error && <p className="notice notice--error" role="alert">{error}</p>}
           <button type="button" className="btn btn--primary btn--block" disabled={busy !== null} onClick={complete}>

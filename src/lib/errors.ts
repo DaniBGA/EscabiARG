@@ -16,6 +16,8 @@ const MESSAGES: Record<string, string> = {
   BURN_RECENT: 'A esa persona ya la quemaron por eso hace un ratito.',
   PHOTO_REQUIRED: 'La foto no es válida: sacá una nueva en el momento.',
   PHOTO_INVALID: 'No pudimos leer la foto. Probá de nuevo.',
+  VIDEO_TOO_BIG: 'El video quedó muy pesado. Grabá uno más corto.',
+  VIDEO_UNSUPPORTED: 'Este celular no puede grabar video desde la app. Probá con una foto.',
   PHOTO_DOWNLOAD_FAILED: 'No pudimos bajar alguna de las fotos. Revisá la conexión y probá de nuevo.',
   INVALID_DIFFICULTY: 'Elegí una dificultad válida.',
   MISSION_ALREADY_CHOSEN: 'Ya elegiste tu misión de hoy.',
@@ -100,7 +102,8 @@ const AUTH_MESSAGES: [RegExp, string][] = [
   [/provider is not enabled/i, 'Este método de ingreso no está habilitado todavía.'],
   [/rate limit/i, 'Demasiados intentos. Esperá un ratito y probá de nuevo.'],
   [/failed to fetch|network/i, 'No hay conexión. Revisá tu internet.'],
-  [/maximum allowed size|payload too large/i, 'La foto es muy pesada.'],
+  [/maximum allowed size|payload too large/i, 'El archivo es muy pesado.'],
+  [/mime type .*not supported|invalid_mime_type/i, 'Todavía no se pueden subir videos: falta correr la migración de videos en Supabase.'],
   [/row-level security|permission denied/i, 'No tenés permiso para hacer eso.'],
 ]
 

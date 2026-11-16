@@ -5,6 +5,8 @@ import { canShareFiles, fetchPhotos, photoFileName, savePhotos, type PhotoFile }
 import { friendlyError } from '../../lib/errors'
 import { formatDay, formatPoints, formatTime } from '../../lib/game'
 import Sheet from '../Sheet'
+import { isVideoPath } from '../../lib/media'
+import { MediaFull, MediaThumb } from './Media'
 
 type Props = {
   events: TripEvent[]
@@ -73,7 +75,9 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
     const taken = new Set<string>()
     // En el archivo va el nombre de verdad (no "Vos")
     const realName = (id: string) => members.find((m) => m.user_id === id)?.profile?.display_name ?? 'Alguien'
-    const names = list.map((p) => photoFileName(p.event.created_at, realName(p.event.user_id), describe(p.event), taken))
+    const names = list.map((p) =>
+      photoFileName(p.event.created_at, realName(p.event.user_id), describe(p.event), taken, p.path.split('.').pop() ?? 'jpg'),
+    )
     const missing = list.filter((p) => !urls[p.path]).map((p) => p.path)
     const fresh = missing.length > 0 ? await api.getPhotoUrls(missing) : {}
     const links = list.map((p) => urls[p.path] ?? fresh[p.path])
@@ -139,7 +143,7 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
             <li key={p.path}>
               <button type="button" className="gallery-item" onClick={() => setOpen(p)} aria-label={`${name(p.event.user_id)}: ${p.event.title}`}>
                 {urls[p.path] ? (
-                  <img src={urls[p.path]} alt="" loading="lazy" />
+                  <MediaThumb path={p.path} url={urls[p.path]} alt={p.event.title} />
                 ) : (
                   <span className="feed-photo--loading" style={{ position: 'absolute', inset: 0 }} aria-hidden="true" />
                 )}
@@ -155,10 +159,10 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
         </ul>
       )}
 
-      <Sheet open={open !== null} title="Foto" onClose={() => setOpen(null)}>
+      <Sheet open={open !== null} title={open && isVideoPath(open.path) ? 'Video' : 'Foto'} onClose={() => setOpen(null)}>
         {open && (
           <>
-            {urls[open.path] && <img className="lightbox-img" src={urls[open.path]} alt={open.event.title} />}
+            {urls[open.path] && <MediaFull path={open.path} url={urls[open.path]} alt={open.event.title} />}
             <div className="gallery-caption">
               <p>
                 <strong>{name(open.event.user_id)}</strong>{' '}
@@ -183,7 +187,9 @@ export default function GalleryTab({ events, members, userId, today, tripName }:
               disabled={progress !== null || !urls[open.path]}
               onClick={() => save([open], false)}
             >
-              {progress !== null ? 'Bajando…' : shareable ? '📲 Guardar / compartir foto' : '⬇️ Descargar foto'}
+              {progress !== null
+                ? 'Bajando…'
+                : `${shareable ? '📲 Guardar / compartir' : '⬇️ Descargar'} ${isVideoPath(open.path) ? 'video' : 'foto'}`}
             </button>
             {error && <p className="notice notice--error" role="alert">{error}</p>}
           </>

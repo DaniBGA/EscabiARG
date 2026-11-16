@@ -1,3 +1,4 @@
+import { extensionFor } from './media'
 import { listen, type LiveListener } from './realtime'
 import { requireSupabase } from './supabase'
 
@@ -610,10 +611,12 @@ async function updateRules(tripId: string, rules: TripRules) {
 
 async function uploadPhoto(tripId: string, userId: string, photo: Blob) {
   const sb = requireSupabase()
-  const path = `${tripId}/${userId}/${crypto.randomUUID()}.jpg`
+  // Foto (JPEG) o video de prueba (MP4 / WebM)
+  const type = (photo.type || 'image/jpeg').split(';')[0]
+  const path = `${tripId}/${userId}/${crypto.randomUUID()}.${extensionFor(type)}`
   const { error } = await sb.storage
     .from(PHOTO_BUCKET)
-    .upload(path, photo, { contentType: 'image/jpeg', upsert: false })
+    .upload(path, photo, { contentType: type, upsert: false })
   if (error) throw new Error(error.message)
   return path
 }

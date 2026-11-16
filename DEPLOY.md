@@ -50,6 +50,7 @@ Necesitás:
 > | 8 | `20261111000000_quemar.sql` |
 > | 9 | `20261112000000_viajes_y_boliche.sql` |
 > | 10 | `20261116000000_prenda_elegida.sql` |
+> | 11 | `20261117000000_videos.sql` |
 
 ### 2.b Tiempo real
 
