@@ -11,6 +11,7 @@ import Tutorial from '../components/Tutorial'
 import { markTutorialSeen, tutorialSeen } from '../lib/tutorial'
 import { FriendsIcon, MoonIcon, PlusIcon } from '../components/icons'
 import './Home.css'
+import AppLoading from '../components/AppLoading'
 
 type Panel = 'none' | 'create' | 'create-outing' | 'friends' | 'profile'
 
@@ -141,7 +142,7 @@ export default function Home({ user }: { user: AppUser }) {
             </div>
           </div>
         ) : (
-          <p className="home-loading" role="status">Enfriando los vasos…</p>
+          <AppLoading text="Enfriando los vasos…" />
         )}
       </div>
     )

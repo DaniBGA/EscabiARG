@@ -48,6 +48,7 @@ import QuiebreSheet from '../components/trip/QuiebreSheet'
 import RouletteSheet from '../components/trip/RouletteSheet'
 import ScoreBoard from '../components/trip/ScoreBoard'
 import './TripScreen.css'
+import AppLoading from '../components/AppLoading'
 
 type Tab = 'play' | 'board' | 'feed' | 'gallery' | 'drinks'
 type SheetName = 'none' | 'drink' | 'quiebre' | 'burn' | 'roulette' | 'members'
@@ -495,7 +496,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             </div>
           </div>
         ) : (
-          <p className="home-loading" role="status">Sirviendo el viaje…</p>
+          <AppLoading text="Sirviendo el viaje…" />
         )}
       </div>
     )

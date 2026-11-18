@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { BeerRenderer } from './beer/BeerRenderer'
 import './BeerLoader.css'
+import LogoAnimation from './LogoAnimation'
 
 type Props = {
   /** Se llama una vez que la pantalla quedó llena de cerveza */
@@ -56,7 +57,7 @@ export default function BeerLoader({ instant = false, onFilled, children }: Prop
 
       {!filled && (
         <div className="loader-status" role="status" aria-live="polite">
-          <span className="loader-title">EscabiARG</span>
+          <LogoAnimation size="lg" className="loader-logo" />
           <span className="loader-text">
             Sirviendo… <span ref={percentRef}>0%</span>
           </span>
