@@ -6,6 +6,7 @@ import Home from './screens/Home'
 import { useApi, useAuth } from './lib/authContext'
 import { useNotificationsBridge } from './lib/useNotifications'
 import { matchTrip, useHashRoute } from './lib/router'
+import AppLoading from './components/AppLoading'
 
 // La pantalla del viaje es la más pesada: se baja aparte para que el inicio cargue antes
 const loadTripScreen = () => import('./screens/TripScreen')
@@ -33,7 +34,7 @@ export default function App() {
           <Suspense
             fallback={
               <div className="home home--center">
-                <p className="home-loading" role="status">Sirviendo el viaje…</p>
+                <AppLoading text="Sirviendo el viaje…" />
               </div>
             }
           >

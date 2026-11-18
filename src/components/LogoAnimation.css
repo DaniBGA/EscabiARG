@@ -1,0 +1,193 @@
+/*
+ * Logo animado (sin fondo):
+ *   0,1 – 1,3 s  se escribe "Escabiarg" letra por letra
+ *   1,2 – 2,2 s  entran las manos y chocan los chops (rayitos + espuma)
+ *   desde 3,2 s  siguen brindando cada 1,8 s mientras dure la carga
+ */
+.logo-anim {
+  position: relative;
+  width: min(84vw, 360px);
+  aspect-ratio: 1 / 0.82;
+  pointer-events: none;
+  user-select: none;
+}
+
+.logo-anim--md {
+  width: min(62vw, 220px);
+}
+
+.la-piece {
+  position: absolute;
+  display: block;
+  max-width: none;
+  -webkit-user-drag: none;
+  /* que se lea sobre la cerveza y sobre el fondo oscuro */
+  filter: drop-shadow(0 0 1.5px rgba(45, 16, 0, 0.75)) drop-shadow(0 3px 0 rgba(40, 14, 0, 0.35));
+}
+
+/* Hasta que cargan las imágenes, todo quieto (y escondido por el primer cuadro) */
+.logo-anim:not(.is-ready) .la-piece,
+.logo-anim:not(.is-ready) .la-splash i {
+  animation-play-state: paused;
+}
+
+/* ---------- Se escribe el texto ---------- */
+.la-letter {
+  opacity: 0;
+  transform-origin: 50% 85%;
+  animation: la-write 0.38s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+@keyframes la-write {
+  from {
+    opacity: 0;
+    transform: translateY(35%) scale(0.4) rotate(-14deg);
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Las manos entran y brindan ---------- */
+.la-hand {
+  opacity: 0;
+  will-change: transform;
+}
+
+.la-hand--l {
+  transform-origin: 0% 75%;
+  animation:
+    la-in-l 1s 1.2s cubic-bezier(0.3, 0.7, 0.3, 1) both,
+    la-cheers-l 1.8s 3.2s ease-in-out infinite;
+}
+
+.la-hand--r {
+  transform-origin: 100% 75%;
+  animation:
+    la-in-r 1s 1.2s cubic-bezier(0.3, 0.7, 0.3, 1) both,
+    la-cheers-r 1.8s 3.2s ease-in-out infinite;
+}
+
+/* Entra de costado, se acerca y CHIN (con rebote) */
+@keyframes la-in-l {
+  0% { opacity: 0; transform: translate(-38%, 42%) rotate(-22deg); }
+  18% { opacity: 1; }
+  45% { opacity: 1; transform: translate(-12%, 5%) rotate(-13deg); }
+  72% { transform: translate(2%, -1%) rotate(3deg); }
+  86% { transform: translate(-1.5%, 0.5%) rotate(-2deg); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes la-in-r {
+  0% { opacity: 0; transform: translate(38%, 42%) rotate(22deg); }
+  18% { opacity: 1; }
+  45% { opacity: 1; transform: translate(12%, 5%) rotate(13deg); }
+  72% { transform: translate(-2%, -1%) rotate(-3deg); }
+  86% { transform: translate(1.5%, 0.5%) rotate(2deg); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* Otro brindis: se separan un poco y vuelven a chocar a la mitad */
+@keyframes la-cheers-l {
+  0%, 100% { opacity: 1; transform: none; }
+  30% { transform: translate(-7%, 2%) rotate(-9deg); }
+  50% { transform: translate(1.5%, -0.5%) rotate(2.5deg); }
+  62% { transform: translate(-1%, 0.3%) rotate(-1.2deg); }
+  74% { transform: none; }
+}
+
+@keyframes la-cheers-r {
+  0%, 100% { opacity: 1; transform: none; }
+  30% { transform: translate(7%, 2%) rotate(9deg); }
+  50% { transform: translate(-1.5%, -0.5%) rotate(-2.5deg); }
+  62% { transform: translate(1%, 0.3%) rotate(1.2deg); }
+  74% { transform: none; }
+}
+
+/* ---------- Rayitos del choque ---------- */
+.la-rays {
+  opacity: 0;
+  transform-origin: 50% 100%;
+  animation:
+    la-rays-in 0.5s 1.9s cubic-bezier(0.2, 1.6, 0.4, 1) both,
+    la-rays-pulse 1.8s 3.2s ease-out infinite;
+}
+
+@keyframes la-rays-in {
+  from { opacity: 0; transform: scale(0.2); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes la-rays-pulse {
+  0%, 46% { opacity: 1; transform: none; }
+  50% { opacity: 0.4; transform: scale(0.6); }
+  62% { opacity: 1; transform: scale(1.18); }
+  80%, 100% { opacity: 1; transform: none; }
+}
+
+/* ---------- Gotitas de espuma ---------- */
+.la-splash {
+  position: absolute;
+  left: 50%;
+  top: 27%;
+  width: 0;
+  height: 0;
+}
+
+.la-splash i {
+  position: absolute;
+  left: -2.2%;
+  top: 0;
+  width: calc(var(--d, 9px));
+  height: calc(var(--d, 9px));
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #fff6dc;
+  opacity: 0;
+  --a: calc(-150deg + var(--i) * 24deg);
+  --d: calc(6px + var(--i) * 1.2px);
+  animation:
+    la-drop 0.7s 1.92s ease-out both,
+    la-drop-loop 1.8s 3.2s ease-out infinite;
+}
+
+@keyframes la-drop {
+  from { opacity: 1; transform: rotate(var(--a)) translateX(0) scale(0.6); }
+  to { opacity: 0; transform: rotate(var(--a)) translateX(clamp(34px, 12vw, 58px)) scale(1); }
+}
+
+@keyframes la-drop-loop {
+  0%, 49% { opacity: 0; transform: rotate(var(--a)) translateX(0) scale(0.6); }
+  50% { opacity: 1; transform: rotate(var(--a)) translateX(0) scale(0.6); }
+  88%, 100% { opacity: 0; transform: rotate(var(--a)) translateX(clamp(34px, 12vw, 58px)) scale(1); }
+}
+
+/* Sin animaciones: el logo armado, quieto */
+@media (prefers-reduced-motion: reduce) {
+  .la-piece,
+  .la-splash i {
+    animation: none !important;
+  }
+  .la-letter,
+  .la-hand,
+  .la-rays {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Carga dentro de la app ---------- */
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-loading .home-loading {
+  margin: 0;
+}
