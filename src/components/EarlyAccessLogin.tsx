@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { earlyAccessStatus, type EarlyAccessStatus } from '../lib/earlyAccess'
 import { friendlyError } from '../lib/errors'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import logoCompleto from '../assets/logo/logo-completo.webp'
 import './LoginOptions.css'
 
 /** Cada cuánto se actualiza el contador mientras estás en esta pantalla */
@@ -62,7 +63,9 @@ export default function EarlyAccessLogin() {
   return (
     <main className="login">
       <header className="login-header">
-        <h1 className="login-logo">EscabiARG</h1>
+        <h1 className="login-logo">
+          <img src={logoCompleto} alt="EscabiARG" width={720} height={579} />
+        </h1>
         <p className="login-tagline">La app para tomar con amigos</p>
         <p className="ea-badge">Early access</p>
       </header>

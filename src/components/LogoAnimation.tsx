@@ -25,7 +25,7 @@ const START_ANYWAY_MS = 1500
 
 /**
  * El logo animado: se escribe "Escabiarg" letra por letra, entran las dos manos
- * con los chops y brindan (y siguen brindando mientras dure la carga).
+ * con los chops y brindan una vez (después queda el logo armado).
  */
 export default function LogoAnimation({ size = 'lg', className = '' }: Props) {
   const [loaded, setLoaded] = useState(0)
