@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/authContext'
-import { isDemoEnabled, isGoogleAuthEnabled, isSupabaseConfigured, supabase } from '../lib/supabase'
+import { isDemoEnabled, isEarlyAccess, isGoogleAuthEnabled, isSupabaseConfigured, supabase } from '../lib/supabase'
+import EarlyAccessLogin from './EarlyAccessLogin'
 import { friendlyError } from '../lib/errors'
 import './LoginOptions.css'
 
@@ -24,6 +25,11 @@ const MailIcon = () => (
 )
 
 export default function LoginOptions() {
+  // Early access: solo "Comenzá la previa" (entra como invitado) con cupo limitado
+  return isEarlyAccess ? <EarlyAccessLogin /> : <StandardLogin />
+}
+
+function StandardLogin() {
   const [view, setView] = useState<View>('options')
   const [mode, setMode] = useState<EmailMode>('signin')
   const [name, setName] = useState('')

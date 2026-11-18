@@ -3,7 +3,8 @@ import { AuthContext, type AppUser, type AuthState } from '../lib/authContext'
 import { DEMO_USER_ID, resetDemoData } from '../lib/demoApi'
 import { supabaseApi } from '../lib/api'
 import { releasePush } from '../lib/notifications'
-import { isDemoEnabled, supabase } from '../lib/supabase'
+import { leaveEarlyAccess } from '../lib/earlyAccess'
+import { isDemoEnabled, isEarlyAccess, supabase } from '../lib/supabase'
 import { useSession } from '../lib/useSession'
 
 const DEMO_FLAG = 'escabiarg:demo'
@@ -57,6 +58,8 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     setDemo(true)
   }, [])
 
+  const sessionIsGuest = Boolean(session?.user.is_anonymous)
+
   const signOut = useCallback(async () => {
     if (demo) {
       try {
@@ -71,6 +74,8 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return
     // 1. Que a este celular no le lleguen más los avisos de esta cuenta
     await within(releasePush(supabaseApi), 2500).catch(() => undefined)
+    // En el early access, el invitado que se va libera su lugar en el cupo
+    if (isEarlyAccess && sessionIsGuest) await within(leaveEarlyAccess(), 4000).catch(() => undefined)
     // 2. Cerrar la sesión en el servidor y en el celular
     const result = await within(supabase.auth.signOut(), 6000).catch((err: unknown) => ({ error: err }))
     if (result !== 'timeout' && !result.error) return
@@ -79,10 +84,9 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     await within(supabase.auth.signOut({ scope: 'local' }), 2500).catch(() => undefined)
     forgetStoredSession()
     window.location.replace(window.location.pathname)
-  }, [demo])
+  }, [demo, sessionIsGuest])
 
   const sessionUserId = session?.user.id
-  const sessionIsGuest = Boolean(session?.user.is_anonymous)
   const hasSession = session === undefined ? undefined : session !== null
 
   const user = useMemo<AppUser | null | undefined>(() => {

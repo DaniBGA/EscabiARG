@@ -11,8 +11,11 @@ export const supabase = isSupabaseConfigured ? createClient(url!, key!) : null
 
 export const isGoogleAuthEnabled = import.meta.env.VITE_ENABLE_GOOGLE_AUTH === 'true'
 
-/** Modo demo disponible salvo que se apague con VITE_ENABLE_DEMO=false */
-export const isDemoEnabled = import.meta.env.VITE_ENABLE_DEMO !== 'false'
+/** Early access: solo se entra como invitado y hay un cupo de jugadores (ver supabase/early_access.sql) */
+export const isEarlyAccess = import.meta.env.VITE_EARLY_ACCESS === 'true'
+
+/** Modo demo disponible salvo que se apague con VITE_ENABLE_DEMO=false (en el early access, nunca) */
+export const isDemoEnabled = import.meta.env.VITE_ENABLE_DEMO !== 'false' && !isEarlyAccess
 
 export function requireSupabase() {
   if (!supabase) throw new Error('SUPABASE_NOT_CONFIGURED')

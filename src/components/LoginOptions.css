@@ -225,3 +225,73 @@
   .login-card,
   .login-legal { animation: none; }
 }
+
+/* ---------- Early access ---------- */
+.ea-badge {
+  display: inline-block;
+  margin: 10px 0 0;
+  padding: 3px 12px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: rgba(22, 17, 12, 0.35);
+  font-family: var(--font-label);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+
+.ea-counter {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 2px dashed rgba(42, 29, 16, 0.45);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.ea-counter-head {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ea-counter-head strong {
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: 1.6rem;
+  color: var(--red);
+}
+
+.ea-bar {
+  height: 12px;
+  margin: 8px 0 6px;
+  overflow: hidden;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: rgba(42, 29, 16, 0.08);
+}
+
+.ea-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber), #ffd36b);
+  transition: width 0.6s ease;
+}
+
+.ea-counter.is-full .ea-bar span {
+  background: var(--red);
+}
+
+.ea-counter-text {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-size: 1.2rem;
+  color: var(--paper-ink);
+}
+
+.ea-counter.is-full .ea-counter-text {
+  color: var(--red);
+}

@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import type { Profile } from '../lib/api'
 import { useApi, useAuth, type AppUser } from '../lib/authContext'
+import { isEarlyAccess } from '../lib/supabase'
 import { squareAvatar, useAvatarUrl } from '../lib/avatars'
 import { friendlyError } from '../lib/errors'
 import Avatar from './Avatar'
@@ -194,6 +195,7 @@ export default function ProfileSheet({ open, onClose, me, user, onChange, onShow
         <p className="notice notice--error profile-signout-warn" role="alert">
           Sos invitado: si cerrás sesión <strong>perdés tus amigos y viajes</strong> (no hay forma de volver a
           entrar a esta cuenta).
+          {isEarlyAccess && ' También dejás libre tu lugar en el early access: si se llena, no vas a poder volver a entrar.'}
         </p>
       )}
       <button type="button" className="btn btn--danger btn--block profile-signout" onClick={signOut} disabled={signingOut}>
