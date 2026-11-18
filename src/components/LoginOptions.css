@@ -225,3 +225,11 @@
   .login-card,
   .login-legal { animation: none; }
 }
+
+.login-logo img {
+  display: block;
+  width: min(72vw, 300px);
+  height: auto;
+  margin: 0 auto;
+  filter: drop-shadow(0 4px 10px rgba(60, 25, 0, 0.35));
+}

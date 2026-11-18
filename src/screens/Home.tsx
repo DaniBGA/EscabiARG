@@ -12,6 +12,7 @@ import { markTutorialSeen, tutorialSeen } from '../lib/tutorial'
 import { FriendsIcon, MoonIcon, PlusIcon } from '../components/icons'
 import './Home.css'
 import AppLoading from '../components/AppLoading'
+import logoTexto from '../assets/logo/logo-texto.webp'
 
 type Panel = 'none' | 'create' | 'create-outing' | 'friends' | 'profile'
 
@@ -163,7 +164,9 @@ export default function Home({ user }: { user: AppUser }) {
             <span className="header-label" aria-hidden="true">Perfil</span>
           </button>
 
-          <h1 className="home-logo">EscabiARG</h1>
+          <h1 className="home-logo">
+            <img src={logoTexto} alt="EscabiARG" width={600} height={146} />
+          </h1>
 
           <button
             type="button"

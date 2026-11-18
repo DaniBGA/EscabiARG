@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/authContext'
 import { isDemoEnabled, isGoogleAuthEnabled, isSupabaseConfigured, supabase } from '../lib/supabase'
 import { friendlyError } from '../lib/errors'
+import logoCompleto from '../assets/logo/logo-completo.webp'
 import './LoginOptions.css'
 
 type View = 'options' | 'email'
@@ -98,7 +99,9 @@ export default function LoginOptions() {
   return (
     <main className="login">
       <header className="login-header">
-        <h1 className="login-logo">EscabiARG</h1>
+        <h1 className="login-logo">
+          <img src={logoCompleto} alt="EscabiARG" width={720} height={579} />
+        </h1>
         <p className="login-tagline">La app para tomar con amigos</p>
       </header>
 
