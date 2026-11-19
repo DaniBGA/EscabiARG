@@ -1,3 +1,4 @@
+import { ALL_FEATURES, hasFeature, type Feature } from './features'
 import type {
   Api,
   CardKey,
@@ -443,6 +444,11 @@ function requireOpen(data: DemoData, tripId: string) {
   if (st === 'upcoming') throw new Error('OUTING_NOT_STARTED')
   if (st === 'finished') throw new Error('OUTING_FINISHED')
   return trip
+}
+
+/** Igual que en la base: lo que está apagado en el viaje no se puede usar */
+function requireFeature(trip: StoredTrip, feature: Feature) {
+  if (!hasFeature(trip, feature)) throw new Error('FEATURE_OFF')
 }
 
 function requireOwner(data: DemoData, tripId: string) {
@@ -1104,6 +1110,9 @@ export const demoApi: Api = {
     const data = load()
     const name = trip.name.trim()
     if (!name) throw new Error('TRIP_NAME_REQUIRED')
+    if (trip.endDate && (trip.kind === 'salida' || !trip.tripDate || trip.endDate < trip.tripDate)) {
+      throw new Error('INVALID_DATES')
+    }
     const memberIds = [...new Set(trip.memberIds)].filter((id) => id !== data.me.id)
     if (memberIds.some((id) => !data.friendIds.includes(id))) throw new Error('MEMBER_NOT_FRIEND')
 
@@ -1115,6 +1124,8 @@ export const demoApi: Api = {
       name: name.slice(0, 60),
       // Una salida sin fecha es para hoy
       trip_date: trip.tripDate ?? (trip.kind === 'salida' ? tripDay(DEFAULT_CUTOFF_HOUR) : null),
+      end_date: trip.kind === 'viaje' && trip.tripDate ? trip.endDate : null,
+      features: [...new Set(trip.features)].filter((f) => ALL_FEATURES.includes(f)),
       place: trip.place?.trim().slice(0, 80) || null,
       created_at: new Date().toISOString(),
       ...DEFAULT_RULES,
@@ -1266,6 +1277,7 @@ export const demoApi: Api = {
     await wait()
     const data = load()
     const trip = requireOpen(data, tripId)
+    requireFeature(trip, 'missions')
     const today = todayOf(trip)
     if (data.missions.some((m) => m.trip_id === tripId && m.user_id === data.me.id && m.day === today)) {
       throw new Error('MISSION_ALREADY_CHOSEN')
@@ -1457,6 +1469,7 @@ export const demoApi: Api = {
     const m = data.missions.find((x) => x.id === missionId)
     if (!m) throw new Error('MISSION_NOT_FOUND')
     const trip = requireOpen(data, m.trip_id)
+    requireFeature(trip, 'missions')
     if (m.user_id === data.me.id) throw new Error('CANNOT_CHALLENGE_OWN')
     if (m.day !== todayOf(trip)) throw new Error('MISSION_NOT_TODAY')
     if (m.completed_at) throw new Error('MISSION_ALREADY_DONE')
@@ -1656,7 +1669,7 @@ export const demoApi: Api = {
   async startChefSpin(tripId, kind) {
     await wait()
     const data = load()
-    requireOpen(data, tripId)
+    requireFeature(requireOpen(data, tripId), 'chef')
     if (data.chefSpins.some((x) => x.trip_id === tripId && ['joining', 'cooking', 'voting'].includes(x.status))) {
       throw new Error('CHEF_SPIN_ACTIVE')
     }
@@ -1737,6 +1750,7 @@ export const demoApi: Api = {
     await wait()
     const data = load()
     const trip = requireOpen(data, tripId)
+    requireFeature(trip, 'casino')
     botsAct(data)
     // En la demo se permite 1 minuto para probar rápido
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600) throw new Error('INVALID_MINUTES')
@@ -1841,6 +1855,7 @@ export const demoApi: Api = {
     await wait()
     const data = load()
     const trip = requireOpen(data, tripId)
+    requireFeature(trip, 'duels')
     botsAct(data)
     if (opponentId === data.me.id || !trip.members.some((m) => m.user_id === opponentId)) throw new Error('INVALID_OPPONENT')
     if (kind === 'baile' && themeOf(trip) !== 'boliche') throw new Error('BOLICHE_ONLY')
@@ -1936,8 +1951,31 @@ export const demoApi: Api = {
     await wait()
     const data = load()
     const trip = requireOwner(data, tripId)
-    if (on) requireOpen(data, tripId)
+    if (on) {
+      requireOpen(data, tripId)
+      requireFeature(trip, 'boliche')
+    }
     trip.boliche_at = on ? trip.boliche_at ?? new Date().toISOString() : null
+    save(data)
+  },
+
+  async setTripFeatures(tripId, features) {
+    await wait()
+    const data = load()
+    const trip = requireOwner(data, tripId)
+    trip.features = ALL_FEATURES.filter((f) => features.includes(f))
+    if (!trip.features.includes('boliche')) trip.boliche_at = null
+    save(data)
+  },
+
+  async setTripDates(tripId, start, end) {
+    await wait()
+    const data = load()
+    const trip = requireOwner(data, tripId)
+    if (trip.kind === 'salida' && (end || !start)) throw new Error('INVALID_DATES')
+    if (end && (!start || end < start)) throw new Error('INVALID_DATES')
+    trip.trip_date = start
+    trip.end_date = end
     save(data)
   },
 

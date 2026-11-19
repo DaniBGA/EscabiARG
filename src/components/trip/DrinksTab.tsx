@@ -1,3 +1,4 @@
+import { hasFeature, type Feature } from '../../lib/features'
 import { useState, type FormEvent } from 'react'
 import type { Drink, DrinkInput, TripRules } from '../../lib/api'
 import { useApi } from '../../lib/authContext'
@@ -9,6 +10,8 @@ type Props = {
   tripId: string
   drinks: Drink[]
   rules: TripRules
+  /** Extras del plan (para no mostrar puntos de lo que no se juega) */
+  features?: Feature[]
   isOwner: boolean
   onChange: (message?: string) => void
 }
@@ -35,14 +38,14 @@ const SUGGESTED_PENALTIES: DrinkInput[] = [
 
 type PointRule = Exclude<keyof TripRules, 'day_cutoff_hour'>
 
-const RULE_FIELDS: { key: PointRule; label: string }[] = [
-  { key: 'mission_points_easy', label: '🎯 Misión fácil' },
-  { key: 'mission_points_medium', label: '🔥 Misión intermedia' },
-  { key: 'mission_points_extreme', label: '💀 Misión extrema' },
+const RULE_FIELDS: { key: PointRule; label: string; feature?: Feature }[] = [
+  { key: 'mission_points_easy', label: '🎯 Misión fácil', feature: 'missions' },
+  { key: 'mission_points_medium', label: '🔥 Misión intermedia', feature: 'missions' },
+  { key: 'mission_points_extreme', label: '💀 Misión extrema', feature: 'missions' },
   { key: 'quiebre_penalty', label: '😵 Descuento por quebrar' },
-  { key: 'chef_points', label: '👨‍🍳 Cocinar o preparar bien' },
-  { key: 'casino_points', label: '🎰 Ganar el casino' },
-  { key: 'duel_points', label: '⚔️ Ganar un duelo' },
+  { key: 'chef_points', label: '👨‍🍳 Cocinar o preparar bien', feature: 'chef' },
+  { key: 'casino_points', label: '🎰 Ganar el casino', feature: 'casino' },
+  { key: 'duel_points', label: '⚔️ Ganar un duelo', feature: 'duels' },
 ]
 
 function DrinkForm({ initial, onSave, onCancel }: {
@@ -146,7 +149,8 @@ function DrinkForm({ initial, onSave, onCancel }: {
   )
 }
 
-export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: Props) {
+export default function DrinksTab({ tripId, drinks, rules, features: featureList, isOwner, onChange }: Props) {
+  const features = { features: featureList }
   const api = useApi()
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -289,7 +293,7 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
         <h3 id="rules-title" className="box-title">Reglas del viaje</h3>
         {isOwner ? (
           <form className="rules-form" onSubmit={saveRules}>
-            {RULE_FIELDS.map((f) => (
+            {RULE_FIELDS.filter((f) => !f.feature || hasFeature(features, f.feature)).map((f) => (
               <label key={f.key} className="rule-row">
                 <span>{f.label}</span>
                 <input
@@ -319,7 +323,7 @@ export default function DrinksTab({ tripId, drinks, rules, isOwner, onChange }: 
           </form>
         ) : (
           <ul className="rules-list">
-            {RULE_FIELDS.map((f) => (
+            {RULE_FIELDS.filter((f) => !f.feature || hasFeature(features, f.feature)).map((f) => (
               <li key={f.key}>
                 <span>{f.label}</span>
                 <strong>{f.key === 'quiebre_penalty' ? `-${rules[f.key]}` : `+${rules[f.key]}`}</strong>

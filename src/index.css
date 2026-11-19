@@ -284,3 +284,16 @@ body {
 .paper .stamp--ok { color: var(--green-deep); }
 .paper .stamp--no { color: var(--red-deep); }
 .paper .stamp--wait { color: #9a5d05; }
+
+/* Solo para lectores de pantalla */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

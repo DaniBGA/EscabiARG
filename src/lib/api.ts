@@ -1,3 +1,4 @@
+import type { Feature } from './features'
 import { extensionFor } from './media'
 import { listen, type LiveListener } from './realtime'
 import { requireSupabase } from './supabase'
@@ -30,6 +31,10 @@ export type Trip = {
   day_cutoff_hour?: number
   /** Desde cuándo está activada la Hora boliche (null = apagada) */
   boliche_at?: string | null
+  /** Último día del viaje (los viajes tienen inicio y fin) */
+  end_date?: string | null
+  /** Extras que se juegan (sin la columna = todos) */
+  features?: Feature[]
   members: TripMember[]
 }
 
@@ -42,6 +47,10 @@ export type NewTrip = {
   place: string | null
   memberIds: string[]
   kind: TripKind
+  /** Extras elegidos (lo fundamental está siempre) */
+  features: Feature[]
+  /** Último día (solo viajes) */
+  endDate: string | null
 }
 
 // ---------- Juego del viaje ----------
@@ -356,6 +365,10 @@ export type Api = {
 
   /** Solo el organizador: prende o apaga la Hora boliche */
   setBoliche(tripId: string, on: boolean): Promise<void>
+  /** Solo el organizador: qué extras se juegan */
+  setTripFeatures(tripId: string, features: Feature[]): Promise<void>
+  /** Solo el organizador: fechas (fin solo en viajes) */
+  setTripDates(tripId: string, start: string | null, end: string | null): Promise<void>
   /** Cambia tu misión de hoy por una de boliche (una vez) */
   swapBolicheMission(tripId: string): Promise<void>
 }
@@ -380,13 +393,22 @@ async function withAvatarFallback<T>(
   query: (withAvatar: boolean) => PromiseLike<{ data: T; error: { message: string } | null }>,
 ) {
   const used = hasAvatarColumn
-  const first = await query(used)
-  if (first.error && used && missingAvatar(first.error.message)) {
-    hasAvatarColumn = false
-    return check(await query(false))
+  const usedExtras = hasTripExtras
+  let res = await query(used)
+  // Columnas de migraciones que pueden no estar corridas: se reintenta sin ellas
+  for (let i = 0; i < 2 && res.error; i++) {
+    if (used && hasAvatarColumn !== false && missingAvatar(res.error.message)) hasAvatarColumn = false
+    else if (usedExtras && hasTripExtras && missingTripExtras(res.error.message)) hasTripExtras = false
+    else break
+    res = await query(hasAvatarColumn && used)
   }
-  return check(first)
+  return check(res)
 }
+
+// Fechas de fin y módulos (migración 20261123000000_modulos_y_fechas.sql)
+let hasTripExtras = true
+const tripExtrasCol = () => (hasTripExtras ? ', end_date, features' : '')
+const missingTripExtras = (message: string) => /end_date|features/i.test(message)
 
 async function getMyProfile(userId: string): Promise<Profile> {
   const sb = requireSupabase()
@@ -492,7 +514,7 @@ async function listTrips(): Promise<Trip[]> {
     sb
       .from('trips')
       .select(
-        `id, owner_id, name, trip_date, place, created_at, kind, day_cutoff_hour, members:trip_members(user_id, role, profile:profiles(id, display_name${avatarCol(a)}))`,
+        `id, owner_id, name, trip_date, place, created_at, kind, day_cutoff_hour${tripExtrasCol()}, members:trip_members(user_id, role, profile:profiles(id, display_name${avatarCol(a)}))`,
       )
       .order('created_at', { ascending: false }),
   )
@@ -501,15 +523,19 @@ async function listTrips(): Promise<Trip[]> {
 
 async function createTrip(trip: NewTrip): Promise<string> {
   const sb = requireSupabase()
-  const id = check(
-    await sb.rpc('create_trip', {
-      p_name: trip.name,
-      p_trip_date: trip.tripDate,
-      p_place: trip.place,
-      p_member_ids: trip.memberIds,
-      p_kind: trip.kind,
-    }),
-  ) as string
+  const base = {
+    p_name: trip.name,
+    p_trip_date: trip.tripDate,
+    p_place: trip.place,
+    p_member_ids: trip.memberIds,
+    p_kind: trip.kind,
+  }
+  let res = await sb.rpc('create_trip', { ...base, p_features: trip.features, p_end_date: trip.endDate })
+  // Base sin la migración de módulos: se crea igual (con todo activado y sin fecha de fin)
+  if (res.error && (res.error.code === 'PGRST202' || /could not find the function/i.test(res.error.message))) {
+    res = await sb.rpc('create_trip', base)
+  }
+  const id = check(res) as string
   kickPush()
   return id
 }
@@ -818,9 +844,21 @@ async function rpc(fn: string, args: Record<string, unknown>) {
   return data
 }
 
+async function setTripFeatures(tripId: string, features: Feature[]) {
+  const { error } = await requireSupabase().rpc('set_trip_features', { p_trip: tripId, p_features: features })
+  if (error) throw new Error(/could not find the function/i.test(error.message) ? 'FEATURES_NOT_READY' : error.message)
+}
+
+async function setTripDates(tripId: string, start: string | null, end: string | null) {
+  const { error } = await requireSupabase().rpc('set_trip_dates', { p_trip: tripId, p_start: start, p_end: end })
+  if (error) throw new Error(/could not find the function/i.test(error.message) ? 'FEATURES_NOT_READY' : error.message)
+}
+
 export const supabaseApi: Api = {
   getMyProfile,
   setAvatar,
+  setTripFeatures,
+  setTripDates,
   pushPublicKey,
   savePushSubscription,
   deletePushSubscription,
