@@ -30,7 +30,19 @@ export function useAuth(): AuthState {
 const realApi = withAvatars(supabaseApi)
 const demo = withAvatars(demoApi)
 
+/** Dentro de la sala de práctica todo usa otra API (datos de mentira, en el celular) */
+export type ApiOverride = { api: Api; practice: boolean }
+export const ApiOverrideContext = createContext<ApiOverride | null>(null)
+
 /** API de datos correspondiente al usuario actual (Supabase o demo) */
 export function useApi(): Api {
-  return useAuth().user?.isDemo ? demo : realApi
+  const override = useContext(ApiOverrideContext)
+  const auth = useAuth()
+  if (override) return override.api
+  return auth.user?.isDemo ? demo : realApi
+}
+
+/** ¿Estamos en la sala de práctica? */
+export function usePractice() {
+  return useContext(ApiOverrideContext)?.practice ?? false
 }

@@ -320,3 +320,11 @@
   text-transform: uppercase;
   color: var(--chalk-dim);
 }
+
+.home-logo img {
+  display: block;
+  width: auto;
+  height: clamp(30px, 8.5vw, 38px);
+  margin: 0 auto;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.45));
+}

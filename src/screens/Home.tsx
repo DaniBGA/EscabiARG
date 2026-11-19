@@ -8,9 +8,13 @@ import FriendsSheet from '../components/FriendsSheet'
 import ProfileSheet from '../components/ProfileSheet'
 import TripCard from '../components/TripCard'
 import Tutorial from '../components/Tutorial'
-import { markTutorialSeen, tutorialSeen } from '../lib/tutorial'
+import PracticeInvite from '../components/PracticeInvite'
+import { clearHomeTour, homeTourPending, markTutorialSeen, tutorialSeen } from '../lib/tutorial'
+import { markCameFromHome } from '../lib/router'
 import { FriendsIcon, MoonIcon, PlusIcon } from '../components/icons'
 import './Home.css'
+import AppLoading from '../components/AppLoading'
+import logoTexto from '../assets/logo/logo-texto.webp'
 
 type Panel = 'none' | 'create' | 'create-outing' | 'friends' | 'profile'
 
@@ -24,11 +28,24 @@ export default function Home({ user }: { user: AppUser }) {
   const [trips, setTrips] = useState<Trip[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>('none')
-  // Tutorial: la primera vez que entrás (o cuando lo pedís desde el perfil)
-  const [tutorial, setTutorial] = useState(() => !tutorialSeen(userId))
+  // Primera vez: invitación a la sala de práctica. Después de jugarla (o saltearla),
+  // un recorrido corto del inicio.
+  const [invite, setInvite] = useState(() => !tutorialSeen(userId))
+  const [tutorial, setTutorial] = useState(() => homeTourPending(userId))
   const closeTutorial = () => {
     markTutorialSeen(userId)
+    clearHomeTour(userId)
     setTutorial(false)
+  }
+  const startPractice = () => {
+    markTutorialSeen(userId)
+    setInvite(false)
+    markCameFromHome()
+  }
+  const skipPractice = () => {
+    markTutorialSeen(userId)
+    setInvite(false)
+    setTutorial(true)
   }
 
   const loadProfile = useCallback(async () => setMe(await api.getMyProfile(userId)), [api, userId])
@@ -47,9 +64,14 @@ export default function Home({ user }: { user: AppUser }) {
     try {
       await Promise.all([loadProfile(), loadFriends(), loadTrips()])
     } catch (err) {
+      // Tu cuenta ya no existe: se cierra la sesión y volvés al inicio
+      if (err instanceof Error && err.message === 'ACCOUNT_GONE') {
+        void signOut()
+        return
+      }
       setError(friendlyError(err))
     }
-  }, [loadProfile, loadFriends, loadTrips])
+  }, [loadProfile, loadFriends, loadTrips, signOut])
 
   const [live, setLive] = useState(false)
   const pendingTimer = useRef<number | undefined>(undefined)
@@ -136,7 +158,7 @@ export default function Home({ user }: { user: AppUser }) {
             </div>
           </div>
         ) : (
-          <p className="home-loading" role="status">Enfriando los vasos…</p>
+          <AppLoading text="Enfriando los vasos…" />
         )}
       </div>
     )
@@ -157,7 +179,9 @@ export default function Home({ user }: { user: AppUser }) {
             <span className="header-label" aria-hidden="true">Perfil</span>
           </button>
 
-          <h1 className="home-logo">EscabiARG</h1>
+          <h1 className="home-logo">
+            <img src={logoTexto} alt="EscabiARG" width={600} height={146} />
+          </h1>
 
           <button
             type="button"
@@ -265,14 +289,15 @@ export default function Home({ user }: { user: AppUser }) {
         user={user}
         onShowTutorial={() => {
           setPanel('none')
-          setTutorial(true)
+          setInvite(true)
         }}
         onChange={safely(async () => {
           await loadProfile()
           await loadTrips()
         })}
       />
-      {tutorial && <Tutorial onClose={closeTutorial} />}
+      {invite && <PracticeInvite onStart={startPractice} onSkip={skipPractice} />}
+      {tutorial && !invite && <Tutorial onClose={closeTutorial} />}
     </div>
   )
 }

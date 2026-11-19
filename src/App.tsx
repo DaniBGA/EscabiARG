@@ -5,17 +5,21 @@ import TermsGate from './components/TermsGate'
 import Home from './screens/Home'
 import { useApi, useAuth } from './lib/authContext'
 import { useNotificationsBridge } from './lib/useNotifications'
-import { matchTrip, useHashRoute } from './lib/router'
+import { isPracticePath, matchTrip, useHashRoute } from './lib/router'
+import AppLoading from './components/AppLoading'
 
 // La pantalla del viaje es la más pesada: se baja aparte para que el inicio cargue antes
 const loadTripScreen = () => import('./screens/TripScreen')
 const TripScreen = lazy(loadTripScreen)
+const PracticeScreen = lazy(() => import('./screens/PracticeScreen'))
 
 export default function App() {
   const { user } = useAuth()
   const api = useApi()
   const [introDone, setIntroDone] = useState(false)
-  const tripId = matchTrip(useHashRoute())
+  const path = useHashRoute()
+  const tripId = matchTrip(path)
+  const practice = isPracticePath(path)
   const loggedIn = introDone && Boolean(user)
   // Avisos del navegador (en vivo y Web Push)
   useNotificationsBridge(user, api)
@@ -29,11 +33,21 @@ export default function App() {
     // Primero hay que aceptar los términos (una vez por persona y por versión)
     return (
       <TermsGate key={user.id} user={user}>
-        {tripId ? (
+        {practice ? (
           <Suspense
             fallback={
               <div className="home home--center">
-                <p className="home-loading" role="status">Sirviendo el viaje…</p>
+                <AppLoading text="Armando la práctica…" />
+              </div>
+            }
+          >
+            <PracticeScreen key={`${user.id}:practica`} user={user} />
+          </Suspense>
+        ) : tripId ? (
+          <Suspense
+            fallback={
+              <div className="home home--center">
+                <AppLoading text="Sirviendo el viaje…" />
               </div>
             }
           >

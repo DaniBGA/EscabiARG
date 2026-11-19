@@ -4,6 +4,7 @@ import { friendlyError } from '../lib/errors'
 import { TERMS_VERSION } from '../lib/terms'
 import TermsContent from './TermsContent'
 import './TermsGate.css'
+import AppLoading from './AppLoading'
 
 type Status = { userId: string; accepted: boolean } | null
 
@@ -35,7 +36,7 @@ export default function TermsGate({ user, children }: { user: AppUser; children:
   if (!current) {
     return (
       <div className="home home--center">
-        <p className="home-loading" role="status">Un segundo…</p>
+        <AppLoading text="Un segundo…" />
       </div>
     )
   }
