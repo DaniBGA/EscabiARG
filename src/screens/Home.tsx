@@ -8,7 +8,9 @@ import FriendsSheet from '../components/FriendsSheet'
 import ProfileSheet from '../components/ProfileSheet'
 import TripCard from '../components/TripCard'
 import Tutorial from '../components/Tutorial'
-import { markTutorialSeen, tutorialSeen } from '../lib/tutorial'
+import PracticeInvite from '../components/PracticeInvite'
+import { clearHomeTour, homeTourPending, markTutorialSeen, tutorialSeen } from '../lib/tutorial'
+import { markCameFromHome } from '../lib/router'
 import { FriendsIcon, MoonIcon, PlusIcon } from '../components/icons'
 import './Home.css'
 import AppLoading from '../components/AppLoading'
@@ -26,11 +28,24 @@ export default function Home({ user }: { user: AppUser }) {
   const [trips, setTrips] = useState<Trip[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>('none')
-  // Tutorial: la primera vez que entrás (o cuando lo pedís desde el perfil)
-  const [tutorial, setTutorial] = useState(() => !tutorialSeen(userId))
+  // Primera vez: invitación a la sala de práctica. Después de jugarla (o saltearla),
+  // un recorrido corto del inicio.
+  const [invite, setInvite] = useState(() => !tutorialSeen(userId))
+  const [tutorial, setTutorial] = useState(() => homeTourPending(userId))
   const closeTutorial = () => {
     markTutorialSeen(userId)
+    clearHomeTour(userId)
     setTutorial(false)
+  }
+  const startPractice = () => {
+    markTutorialSeen(userId)
+    setInvite(false)
+    markCameFromHome()
+  }
+  const skipPractice = () => {
+    markTutorialSeen(userId)
+    setInvite(false)
+    setTutorial(true)
   }
 
   const loadProfile = useCallback(async () => setMe(await api.getMyProfile(userId)), [api, userId])
@@ -274,14 +289,15 @@ export default function Home({ user }: { user: AppUser }) {
         user={user}
         onShowTutorial={() => {
           setPanel('none')
-          setTutorial(true)
+          setInvite(true)
         }}
         onChange={safely(async () => {
           await loadProfile()
           await loadTrips()
         })}
       />
-      {tutorial && <Tutorial onClose={closeTutorial} />}
+      {invite && <PracticeInvite onStart={startPractice} onSkip={skipPractice} />}
+      {tutorial && !invite && <Tutorial onClose={closeTutorial} />}
     </div>
   )
 }

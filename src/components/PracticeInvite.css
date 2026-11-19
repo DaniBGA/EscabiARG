@@ -1,0 +1,83 @@
+/* Invitación a la sala de práctica (primera vez) */
+.pinvite {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 6, 3, 0.72);
+  animation: pinvite-fade 0.25s ease-out both;
+}
+
+.pinvite-card {
+  width: min(100%, 400px);
+  padding: 24px 20px 18px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper) var(--grain);
+  color: var(--paper-ink);
+  box-shadow: 6px 6px 0 var(--ink);
+  text-align: center;
+  transform: rotate(-0.6deg);
+  animation: pinvite-in 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+
+.pinvite-emoji {
+  display: block;
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.pinvite-title {
+  margin: 10px 0 0;
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+
+.pinvite-text {
+  margin: 12px 0 0;
+  line-height: 1.45;
+}
+
+.pinvite-small {
+  margin: 8px 0 0;
+  font-family: var(--font-hand);
+  font-size: 1.2rem;
+  color: var(--red);
+}
+
+.pinvite-start {
+  margin-top: 18px;
+  text-decoration: none;
+}
+
+.pinvite-skip {
+  margin-top: 12px;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: var(--paper-ink);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+@keyframes pinvite-fade {
+  from { opacity: 0; }
+}
+
+@keyframes pinvite-in {
+  from { opacity: 0; transform: translateY(24px) rotate(-3deg) scale(0.95); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinvite,
+  .pinvite-card {
+    animation: none;
+  }
+}

@@ -18,3 +18,31 @@ export function markTutorialSeen(userId: string) {
     // sin localStorage se vuelve a mostrar la próxima vez
   }
 }
+
+const tourKey = (userId: string) => `escabiarg:home-tour:${userId}`
+
+/** Al terminar la sala de práctica, en el inicio se muestra el recorrido */
+export function markHomeTourPending(userId: string) {
+  try {
+    sessionStorage.setItem(tourKey(userId), '1')
+  } catch {
+    // sin recorrido, no pasa nada
+  }
+}
+
+/** ¿Hay que mostrar el recorrido del inicio? */
+export function homeTourPending(userId: string) {
+  try {
+    return sessionStorage.getItem(tourKey(userId)) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function clearHomeTour(userId: string) {
+  try {
+    sessionStorage.removeItem(tourKey(userId))
+  } catch {
+    // nada
+  }
+}

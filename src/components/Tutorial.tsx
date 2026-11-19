@@ -11,15 +11,15 @@ type Step = {
 
 const STEPS: Step[] = [
   {
-    emoji: '👋',
-    title: '¡Bienvenido a EscabiARG!',
-    text: 'Arman viajes o salidas con amigos, suman puntos con tragos, misiones y retos, y todo se actualiza en vivo en los celulares de todos. Te lo mostramos en un minuto.',
+    emoji: '🏠',
+    title: 'Tu inicio',
+    text: 'Ya sabés cómo se juega. Te mostramos dónde está cada cosa para armar tu primer plan.',
   },
   {
     target: 'profile',
     emoji: '🙋',
     title: 'Tu perfil',
-    text: 'Tocá acá para cambiar tu nombre, ver tu código para que te agreguen, releer los términos, volver a ver este tutorial o cerrar sesión.',
+    text: 'Cambiá tu nombre y tu foto, mirá tu código para que te agreguen, activá las notificaciones o volvé a la sala de práctica cuando quieras.',
   },
   {
     target: 'friends',
@@ -31,7 +31,7 @@ const STEPS: Step[] = [
     target: 'create',
     emoji: '✈️',
     title: 'Armá un plan',
-    text: '“Crear viaje” es para varios días; “Previa y salida”, para una sola noche. Elegís a qué amigos invitar y después podés sumar a los que te olvidaste.',
+    text: '“Crear viaje” es para varios días (con ida y vuelta); “Previa y salida”, para una sola noche. Elegís qué extras se juegan y a qué amigos invitar.',
   },
   {
     target: 'trips',
@@ -40,39 +40,9 @@ const STEPS: Step[] = [
     text: 'Acá aparecen tus viajes y salidas. Tocá uno para entrar. Si hay algo para validar o votar, te lo marca con un número.',
   },
   {
-    emoji: '🍺',
-    title: 'Cargar trago',
-    text: 'Adentro de un plan, sacale una foto a lo que tomás (con la cámara de la app, en el momento). Suma cuando la mayoría del grupo la valida en “Pendientes”.',
-  },
-  {
-    emoji: '🎯',
-    title: 'Misión del día',
-    text: 'Elegí fácil, intermedia o extrema y te toca una al azar. Si al grupo le parece mala, la pueden votar y cambiar. Se prueba con foto o con un video de hasta 15 segundos.',
-  },
-  {
-    emoji: '😵',
-    title: 'Quebró y Quemar',
-    text: 'Si alguien quiebra, se reporta con foto y le restan puntos. Y si agarrás a alguien tomando agua o un Alikal, lo quemás con una foto 🔥.',
-  },
-  {
-    emoji: '⚔️',
-    title: 'Duelos y ruletas',
-    text: 'Retá a alguien a fondo blanco o shots (el otro decide si acepta y se puede bajar cuando quiera). La ruleta elige quién cocina o prepara el trago, y el grupo vota si salió bueno.',
-  },
-  {
-    emoji: '🎰',
-    title: 'Casino, infracciones y prendas',
-    text: 'En el casino, el que pierde todo toca “Quedé en 0” y el último con plata gana. Las infracciones (llegar tarde, dormirse…) se pagan con una prenda que elige quien la reporta.',
-  },
-  {
-    emoji: '🪩',
-    title: 'Hora boliche',
-    text: 'El organizador puede activarla: las misiones, prendas y duelos pasan a ser de boliche, incluido el duelo de baile que vota el grupo.',
-  },
-  {
-    emoji: '🏆',
-    title: 'Tabla, comodines y galería',
-    text: 'El que gana la jornada gira la ruleta de comodines. En “Galería” quedan todas las fotos y videos para descargar. Y acordate: el límite lo ponés vos, podés parar cuando quieras.',
+    emoji: '🍻',
+    title: '¡A jugar!',
+    text: 'Y acordate: el límite lo ponés vos, podés parar cuando quieras. ¡Salud!',
   },
 ]
 
@@ -80,7 +50,7 @@ type Rect = { top: number; left: number; width: number; height: number }
 
 const PAD = 8
 
-/** Tutorial de la primera vez, con el botón resaltado en cada paso y opción de saltearlo */
+/** Recorrido del inicio (después de la sala de práctica), con el botón resaltado en cada paso */
 export default function Tutorial({ onClose }: { onClose: () => void }) {
   const [index, setIndex] = useState(0)
   const [rect, setRect] = useState<Rect | null>(null)

@@ -18,6 +18,7 @@ from (values
   (13, '20261119000000_terminos.sql',                 exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'terms_version')),
   (14, '20261120000000_foto_de_perfil.sql',           exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'avatar_url')),
   (15, '20261121000000_notificaciones.sql',           to_regclass('public.notifications') is not null),
-  (16, '20261122000000_rendimiento.sql',              to_regproc('public.trip_pulse') is not null)
+  (16, '20261122000000_rendimiento.sql',              to_regproc('public.trip_pulse') is not null),
+  (17, '20261123000000_modulos_y_fechas.sql',         exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'trips' and column_name = 'features'))
 ) as m(orden, archivo, ok)
 order by orden;

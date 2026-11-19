@@ -7,6 +7,7 @@ import TripSettingsBox from '../components/trip/TripSettingsBox'
 import { applyTripChange, needsReload, nextDeadline } from '../lib/tripSync'
 import { useApi, type AppUser } from '../lib/authContext'
 import NotificationsPrompt from '../components/NotificationsPrompt'
+import PracticeCoach from '../components/trip/PracticeCoach'
 import { friendlyError } from '../lib/errors'
 import {
   activeCasino,
@@ -91,7 +92,15 @@ function formatTripDate(iso: string) {
   return new Date(y, m - 1, d).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
 }
 
-export default function TripScreen({ tripId, user }: { tripId: string; user: AppUser }) {
+type TripScreenProps = {
+  tripId: string
+  user: AppUser
+  /** Sala de práctica del tutorial: muestra la guía y la llama al terminar */
+  onPracticeFinish?: () => void
+}
+
+export default function TripScreen({ tripId, user, onPracticeFinish }: TripScreenProps) {
+  const practice = Boolean(onPracticeFinish)
   const api = useApi()
   const me = user.id
   const [detail, setDetail] = useState<TripDetail | null>(null)
@@ -160,6 +169,8 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       setError(friendlyError(err))
     }
   }, [api, tripId])
+
+  const reloadNow = useCallback(() => void load(), [load])
 
   /** Junta varios pedidos seguidos en uno solo */
   const scheduleReload = useCallback(
@@ -530,7 +541,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
   const shieldActive = activeCards.some((c) => cardDef(c.card_key).effect === 'shield')
 
   return (
-    <div className={`trip-screen${boliche ? ' is-boliche' : ''}`} data-live={live || undefined}>
+    <div className={`trip-screen${boliche ? ' is-boliche' : ''}${practice ? ' is-practice' : ''}`} data-live={live || undefined}>
       <header className="trip-header">
         <div className="trip-header-bar">
           <button type="button" className="header-btn" onClick={goHome} aria-label="Volver al inicio">
@@ -564,8 +575,11 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       </header>
 
       <main className="trip-main">
-        {user.isDemo && (
+        {user.isDemo && !practice && (
           <p className="demo-banner"><strong>Modo demo</strong> · Probá cargar tragos, misiones y quiebres.</p>
+        )}
+        {practice && (
+          <p className="demo-banner"><strong>Sala de práctica</strong> · Nada de acá cuenta ni lo ve nadie.</p>
         )}
 
         {!user.isDemo && (
@@ -607,7 +621,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
         )}
 
         {isOuting ? (
-          <div className="stats">
+          <div className="stats" data-tour="stats">
             <div className="stat">
               <span className="stat-label">Puntos de la noche</span>
               <span className="stat-value">{nightRow?.points ?? 0}</span>
@@ -620,7 +634,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
             </div>
           </div>
         ) : (
-        <div className="stats">
+        <div className="stats" data-tour="stats">
           <div className="stat">
             <span className="stat-label">Hoy</span>
             <span className="stat-value">{todayRow?.points ?? 0}</span>
@@ -667,15 +681,15 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
 
         {canPlay && (
         <div className="actions">
-          <button type="button" className="action action--drink" onClick={() => setSheet('drink')}>
+          <button type="button" className="action action--drink" data-tour="drink" onClick={() => setSheet('drink')}>
             <span className="action-emoji" aria-hidden="true"><MugIcon size={30} /></span>
             <span>Cargar trago</span>
           </button>
-          <button type="button" className="action action--quiebre" onClick={() => setSheet('quiebre')}>
+          <button type="button" className="action action--quiebre" data-tour="quiebre" onClick={() => setSheet('quiebre')}>
             <span className="action-emoji" aria-hidden="true"><DizzyIcon size={26} /></span>
             <span>Alguien quebró</span>
           </button>
-          <button type="button" className="action action--burn" onClick={() => setSheet('burn')}>
+          <button type="button" className="action action--burn" data-tour="burn" onClick={() => setSheet('burn')}>
             <span className="action-emoji" aria-hidden="true"><FlameIcon size={26} /></span>
             <span>
               Quemar
@@ -712,6 +726,7 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
               key={t.key}
               type="button"
               role="tab"
+              data-tour={`tab-${t.key}`}
               aria-selected={tab === t.key}
               className="tab"
               onClick={() => setTab(t.key)}
@@ -897,6 +912,9 @@ export default function TripScreen({ tripId, user }: { tripId: string; user: App
       {quiebreTitle && <QuiebreOverlay title={quiebreTitle} onClose={() => setQuiebreTitle(null)} />}
       {burnInfo && !quiebreTitle && <BurnOverlay info={burnInfo} onClose={() => setBurnInfo(null)} />}
       {bolicheBy && !quiebreTitle && !burnInfo && <BolicheOverlay by={bolicheBy} onClose={() => setBolicheBy(null)} />}
+      {onPracticeFinish && (
+        <PracticeCoach detail={detail} me={me} tab={tab} onRefresh={reloadNow} onFinish={onPracticeFinish} />
+      )}
 
       {toast && (
         <div className="toast" role="status">

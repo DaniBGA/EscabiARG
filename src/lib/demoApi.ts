@@ -94,6 +94,8 @@ type DemoData = {
   duels: Duel[]
   duelResults: (DuelResult & { trip_id: string })[]
   duelVotes: (DuelVote & { trip_id: string })[]
+  /** Sala de práctica: eventos que los jugadores de ejemplo NO votan (espera tu voto) */
+  hold?: string[]
 }
 
 const PEOPLE: Profile[] = [
@@ -363,12 +365,20 @@ function seed(): DemoData {
   }
 }
 
-// Si localStorage no está disponible (modo privado, etc.) se usa memoria
-let memory: DemoData | null = null
+/**
+ * Dónde guarda sus datos cada motor: el modo demo y la sala de práctica usan el
+ * mismo motor con datos separados (no se mezclan).
+ */
+type DemoStore = {
+  key: string
+  seed: () => DemoData
+  // Si localStorage no está disponible (modo privado, etc.) se usa memoria
+  memory: DemoData | null
+}
 
-function load(): DemoData {
+function loadFrom(store: DemoStore): DemoData {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(store.key)
     if (raw) {
       const parsed = JSON.parse(raw) as DemoData
       if (parsed.version === VERSION) return parsed
@@ -376,29 +386,35 @@ function load(): DemoData {
   } catch {
     // seguimos con memoria / datos nuevos
   }
-  if (!memory || memory.version !== VERSION) {
-    memory = seed()
-    save(memory)
+  if (!store.memory || store.memory.version !== VERSION) {
+    store.memory = store.seed()
+    saveTo(store, store.memory)
   }
-  return memory
+  return store.memory
 }
 
-function save(data: DemoData) {
-  memory = data
+function saveTo(store: DemoStore, data: DemoData) {
+  store.memory = data
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    localStorage.setItem(store.key, JSON.stringify(data))
   } catch {
     // sin persistencia: queda en memoria hasta recargar
   }
 }
 
-export function resetDemoData() {
-  memory = null
+function clearStore(store: DemoStore) {
+  store.memory = null
   try {
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(store.key)
   } catch {
     // nada que borrar
   }
+}
+
+const DEMO_STORE: DemoStore = { key: STORAGE_KEY, seed: () => seed(), memory: null }
+
+export function resetDemoData() {
+  clearStore(DEMO_STORE)
   void clearDemoPhotos()
 }
 
@@ -810,6 +826,8 @@ function botsAct(data: DemoData, now = Date.now()) {
       if (e.trip_id !== trip.id || e.status !== 'pending') continue
       bots.forEach((bot, i) => {
         if (bot === e.actor_id || bot === e.user_id) return
+        // Práctica: ese trago espera tu voto; después votan los demás
+        if (data.hold?.includes(e.id) && !data.eventVotes.some((v) => v.event_id === e.id && v.voter_id === data.me.id)) return
         if (data.eventVotes.some((v) => v.event_id === e.id && v.voter_id === bot)) return
         if (now - Date.parse(e.created_at) < 3000 + i * 2500) return
         data.eventVotes.push({ event_id: e.id, trip_id: trip.id, voter_id: bot, valid: true })
@@ -1024,7 +1042,10 @@ function challengeForVoter(data: DemoData, challengeId: string) {
 
 const DEMO_TERMS_KEY = 'escabiarg:demo-terms'
 
-export const demoApi: Api = {
+function createDemoApi(store: DemoStore): Api {
+  const load = () => loadFrom(store)
+  const save = (data: DemoData) => saveTo(store, data)
+  return {
   async getTermsVersion() {
     try {
       return Number(localStorage.getItem(DEMO_TERMS_KEY) ?? 0) || 0
@@ -2003,4 +2024,126 @@ export const demoApi: Api = {
     d.status = 'cancelled'
     save(data)
   },
+}
+}
+
+export const demoApi = createDemoApi(DEMO_STORE)
+
+// ---------- Sala de práctica (tutorial de la primera vez) ----------
+
+export const PRACTICE_TRIP_ID = 'practice-trip'
+/** Quién carga el trago que tenés que validar en la práctica */
+export const PRACTICE_BOT_ID = 'demo-tincho'
+
+function practiceSeed(): DemoData {
+  const now = Date.now()
+  const today = tripDay(DEFAULT_CUTOFF_HOUR, now)
+  const T = PRACTICE_TRIP_ID
+  const ago = (min: number) => iso(now - min * 60_000)
+  const drinks: DemoData['drinks'] = [
+    { id: 'p-birra', trip_id: T, name: 'Birra', emoji: '🍺', points: 5, archived: false },
+    { id: 'p-fernet', trip_id: T, name: 'Fernet con coca', emoji: '🥃', points: 10, archived: false },
+    { id: 'p-gin', trip_id: T, name: 'Gin tonic', emoji: '🍸', points: 8, archived: false },
+    { id: 'p-agua', trip_id: T, name: 'Vaso de agua', emoji: '💧', points: -5, archived: false },
+    { id: 'p-alikal', trip_id: T, name: 'Alikal', emoji: '💊', points: -10, archived: false },
+  ]
+  const ev = (user: string, minutesAgo: number, title: string, emoji: string, points: number): DemoEvent => ({
+    id: newId(),
+    trip_id: T,
+    user_id: user,
+    actor_id: user,
+    kind: 'drink',
+    points,
+    day: today,
+    title,
+    emoji,
+    detail: null,
+    photo_paths: [seedPhotoPath(emoji, 30)],
+    created_at: ago(minutesAgo),
+    status: 'approved',
+  })
+  const lists = seedLists(T)
+  return {
+    version: VERSION,
+    me: { id: DEMO_USER_ID, display_name: 'Vos', friend_code: 'PRACT1' },
+    people: PEOPLE.filter((p) => p.id === 'demo-juli' || p.id === 'demo-tincho'),
+    friendIds: ['demo-juli', 'demo-tincho'],
+    trips: [
+      {
+        id: T,
+        kind: 'salida',
+        owner_id: DEMO_USER_ID,
+        name: 'Sala de práctica',
+        trip_date: today,
+        end_date: null,
+        place: 'Tu casa',
+        created_at: ago(30),
+        ...DEFAULT_RULES,
+        // Solo lo fundamental: los extras se cuentan al final
+        features: [],
+        boliche_at: null,
+        members: [
+          { user_id: DEMO_USER_ID, role: 'owner' },
+          { user_id: 'demo-juli', role: 'member' },
+          { user_id: 'demo-tincho', role: 'member' },
+        ],
+      },
+    ],
+    drinks,
+    events: [ev('demo-juli', 12, 'Birra', '🍺', 5), ev('demo-tincho', 20, 'Fernet con coca', '🥃', 10)],
+    missions: [],
+    cards: [],
+    eventVotes: [],
+    challenges: [],
+    badVotes: [],
+    options: [],
+    optionVotes: [],
+    infractions: lists.infractions,
+    forfeits: lists.forfeits,
+    playerForfeits: [],
+    chefSpins: [],
+    chefPlayers: [],
+    chefVotes: [],
+    casinoSessions: [],
+    casinoPlayers: [],
+    duels: [],
+    duelResults: [],
+    duelVotes: [],
+    hold: [],
+  }
+}
+
+const PRACTICE_STORE: DemoStore = { key: 'escabiarg:practice-data', seed: practiceSeed, memory: null }
+
+/** La sala de práctica: mismo motor que la demo, con sus propios datos */
+export const practiceApi = createDemoApi(PRACTICE_STORE)
+
+/** Arranca la práctica de cero */
+export function resetPractice() {
+  clearStore(PRACTICE_STORE)
+}
+
+/** Paso "validá vos": Tincho carga un trago y espera tu voto (Juli no lo vota) */
+export function practiceBotDrink() {
+  const data = loadFrom(PRACTICE_STORE)
+  if (data.events.some((e) => data.hold?.includes(e.id))) return
+  const today = tripDay(DEFAULT_CUTOFF_HOUR)
+  const e: DemoEvent = {
+    id: newId(),
+    trip_id: PRACTICE_TRIP_ID,
+    user_id: PRACTICE_BOT_ID,
+    actor_id: PRACTICE_BOT_ID,
+    kind: 'drink',
+    points: 10,
+    day: today,
+    title: 'Fernet con coca',
+    emoji: '🥃',
+    detail: null,
+    photo_paths: [seedPhotoPath('🥃', 40)],
+    created_at: new Date().toISOString(),
+    status: 'pending',
+  }
+  data.events.unshift(e)
+  data.hold = [...(data.hold ?? []), e.id]
+  saveTo(PRACTICE_STORE, data)
 }

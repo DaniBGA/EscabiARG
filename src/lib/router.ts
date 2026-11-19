@@ -13,6 +13,10 @@ export function useHashRoute() {
 
 export const tripPath = (id: string) => `#/viaje/${id}`
 
+/** Sala de práctica del tutorial */
+export const PRACTICE_PATH = '#/practica'
+export const isPracticePath = (path: string) => path === '/practica'
+
 export function matchTrip(path: string) {
   const m = /^\/viaje\/([^/]+)$/.exec(path)
   return m ? decodeURIComponent(m[1]) : null
