@@ -1,0 +1,80 @@
+.features {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.features-sub {
+  margin: 10px 0 6px;
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+
+.features-core {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.features-core li {
+  padding: 5px 10px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: rgba(239, 236, 226, 0.06);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.features-list {
+  max-height: none;
+  overflow: visible;
+}
+
+.feature-item {
+  align-items: flex-start;
+  padding: 10px 12px;
+}
+
+.feature-emoji {
+  flex: none;
+  width: 30px;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.feature-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feature-text strong {
+  font-size: 0.98rem;
+}
+
+.feature-text small {
+  color: var(--chalk-dim);
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.feature-item .invite-check {
+  flex: none;
+  margin-top: 2px;
+}
+
+.features:disabled .feature-item {
+  opacity: 0.6;
+  cursor: default;
+}

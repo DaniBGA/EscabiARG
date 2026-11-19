@@ -28,6 +28,8 @@ export default function TripCard({ trip, myId, pending = 0 }: { trip: Trip; myId
   const shown = members.slice(0, MAX_AVATARS)
   const extra = members.length - shown.length
   const date = trip.trip_date ? dateParts(trip.trip_date) : null
+  // Viaje con vuelta: "4–7 nov" (o "30 nov–2 dic")
+  const end = trip.trip_date && trip.end_date && trip.end_date !== trip.trip_date ? dateParts(trip.end_date) : null
 
   return (
     <a className={`trip-card trip-card--${trip.kind}`} href={tripPath(trip.id)} onClick={markCameFromHome}>
@@ -63,9 +65,11 @@ export default function TripCard({ trip, myId, pending = 0 }: { trip: Trip; myId
       <div className="trip-stub" aria-hidden={!date}>
         {date ? (
           <>
-            <span className="stub-week">{date.weekday}</span>
-            <span className="stub-day">{date.day}</span>
-            <span className="stub-month">{date.month}</span>
+            <span className="stub-week">{end ? 'del' : date.weekday}</span>
+            <span className={end ? 'stub-day stub-day--range' : 'stub-day'}>
+              {end ? `${date.day}–${end.day}` : date.day}
+            </span>
+            <span className="stub-month">{end && end.month !== date.month ? `${date.month}–${end.month}` : date.month}</span>
           </>
         ) : (
           <span className="stub-none">Sin fecha</span>

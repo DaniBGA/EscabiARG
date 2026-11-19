@@ -3,7 +3,9 @@ import type { Profile, TripKind } from '../lib/api'
 import { DEFAULT_CUTOFF_HOUR, tripDay } from '../lib/game'
 import { useApi } from '../lib/authContext'
 import { friendlyError } from '../lib/errors'
+import { ALL_FEATURES, type Feature } from '../lib/features'
 import Avatar from './Avatar'
+import FeaturePicker from './FeaturePicker'
 import Sheet from './Sheet'
 import { CheckIcon, FriendsIcon } from './icons'
 import './CreateTripSheet.css'
@@ -22,6 +24,8 @@ export default function CreateTripSheet({ open, kind, onClose, friends, onCreate
   const isOuting = kind === 'salida'
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [features, setFeatures] = useState<Feature[]>(ALL_FEATURES)
   const [place, setPlace] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -31,6 +35,8 @@ export default function CreateTripSheet({ open, kind, onClose, friends, onCreate
   const reset = () => {
     setName('')
     setDate('')
+    setEndDate('')
+    setFeatures(ALL_FEATURES)
     setPlace('')
     setSelected(new Set())
     setError(null)
@@ -53,8 +59,14 @@ export default function CreateTripSheet({ open, kind, onClose, friends, onCreate
   const allSelected = friends.length > 0 && selected.size === friends.length
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(friends.map((f) => f.id)))
 
+  const badDates = !isOuting && Boolean(endDate) && (!date || endDate < date)
+
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (badDates) {
+      setError(friendlyError('INVALID_DATES'))
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -62,6 +74,8 @@ export default function CreateTripSheet({ open, kind, onClose, friends, onCreate
         name: name.trim(),
         // Una salida sin fecha elegida es para hoy (la base calcula la jornada)
         tripDate: date || null,
+        endDate: !isOuting && date && endDate ? endDate : null,
+        features,
         kind,
         place: place.trim() || null,
         // Solo amigos que siguen en la lista (por si se quitó alguno mientras tanto)
@@ -80,7 +94,7 @@ export default function CreateTripSheet({ open, kind, onClose, friends, onCreate
     <Sheet open={open} title={isOuting ? 'Nueva previa y salida' : 'Nuevo viaje'} onClose={close}>
       {isOuting && (
         <p className="muted small create-outing-note">
-          🌙 Es igual que un viaje pero dura una sola jornada: tragos, misiones, duelos, casino y todo lo demás, solo por esa noche.
+          🌙 Es igual que un viaje pero dura una sola jornada: se juega solo esa noche.
         </p>
       )}
       <form className="trip-form" onSubmit={submit}>
@@ -97,22 +111,50 @@ export default function CreateTripSheet({ open, kind, onClose, friends, onCreate
           />
         </label>
 
-        <div className="trip-form-row">
+        {isOuting ? (
           <label className="field">
-            <span>{isOuting ? 'Día de la salida' : <>Fecha <em>(opcional)</em></>}</span>
-            <input type="date" value={date || (isOuting ? tripDay(DEFAULT_CUTOFF_HOUR) : '')} onChange={(e) => setDate(e.target.value)} />
+            <span>Día de la salida</span>
+            <input type="date" value={date || tripDay(DEFAULT_CUTOFF_HOUR)} onChange={(e) => setDate(e.target.value)} />
           </label>
-          <label className="field">
-            <span>Lugar <em>(opcional)</em></span>
-            <input
-              type="text"
-              value={place}
-              onChange={(e) => setPlace(e.target.value)}
-              placeholder="Ej: Lo de Juan"
-              maxLength={80}
-            />
-          </label>
-        </div>
+        ) : (
+          <div className="trip-form-row">
+            <label className="field">
+              <span>Ida <em>(opcional)</em></span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  if (endDate && e.target.value && endDate < e.target.value) setEndDate('')
+                }}
+              />
+            </label>
+            <label className="field">
+              <span>Vuelta <em>(opcional)</em></span>
+              <input
+                type="date"
+                value={endDate}
+                min={date || undefined}
+                disabled={!date}
+                onChange={(e) => setEndDate(e.target.value)}
+                aria-invalid={badDates || undefined}
+              />
+            </label>
+          </div>
+        )}
+
+        <label className="field">
+          <span>Lugar <em>(opcional)</em></span>
+          <input
+            type="text"
+            value={place}
+            onChange={(e) => setPlace(e.target.value)}
+            placeholder={isOuting ? 'Ej: Lo de Juan' : 'Ej: Villa Gesell'}
+            maxLength={80}
+          />
+        </label>
+
+        <FeaturePicker value={features} onChange={setFeatures} />
 
         <fieldset className="invite">
           <legend className="invite-legend">
