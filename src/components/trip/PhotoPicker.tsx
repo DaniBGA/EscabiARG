@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { usePractice } from '../../lib/authContext'
 import { MAX_VIDEO_SECONDS, canRecordVideo, isVideoBlob } from '../../lib/media'
+import { samplePhoto } from '../../lib/samplePhoto'
 import { CameraIcon, CloseIcon } from '../icons'
 import CameraCapture from './CameraCapture'
 
@@ -16,6 +18,7 @@ type Props = {
 /** Fotos (y videos cortos) sacados con la cámara de la app (sin galería) + vista previa */
 export default function PhotoPicker({ photos, onChange, max = 1, label = 'Sacar foto', allowVideo = false }: Props) {
   const [camera, setCamera] = useState(false)
+  const practice = usePractice()
   const previews = useMemo(() => photos.map((p) => ({ url: URL.createObjectURL(p), video: isVideoBlob(p) })), [photos])
   useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p.url)), [previews])
   const video = allowVideo && canRecordVideo()
@@ -52,6 +55,18 @@ export default function PhotoPicker({ photos, onChange, max = 1, label = 'Sacar 
           <CameraIcon />
           <span>{photos.length === 0 ? label : video ? 'Sacar otra foto o video' : 'Sacar otra foto'}</span>
           {max > 1 && <small>{photos.length}/{max}</small>}
+        </button>
+      )}
+      {practice && photos.length < max && (
+        <button
+          type="button"
+          className="photo-sample"
+          onClick={async () => {
+            const blob = await samplePhoto()
+            onChange(max === 1 ? [blob] : [...photos, blob].slice(0, max))
+          }}
+        >
+          🖼️ Usar una foto de ejemplo (solo en la práctica)
         </button>
       )}
       <p className="photo-note">

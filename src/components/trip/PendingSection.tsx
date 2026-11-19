@@ -200,7 +200,7 @@ export default function PendingSection({ detail, me, now, onChange, onGo }: Prop
   if (items.length === 0) return null
 
   return (
-    <section className="pending" aria-labelledby="pending-title">
+    <section className="pending" aria-labelledby="pending-title" data-tour="pending">
       <h2 id="pending-title" className="pending-title">
         <span className="sign">Pendientes</span> <span className="pending-count">{all.length}</span>
       </h2>

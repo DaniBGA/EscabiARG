@@ -61,6 +61,7 @@ Necesitás:
 > | 14 | `20261120000000_foto_de_perfil.sql` |
 > | 15 | `20261121000000_notificaciones.sql` |
 > | 16 | `20261122000000_rendimiento.sql` ⚠️ ver nota |
+> | 17 | `20261123000000_modulos_y_fechas.sql` |
 >
 > ⚠️ **Migración 16:** corréla **después** de que Netlify publique la versión de la
 > app que la acompaña (la de "rendimiento con muchos jugadores"). Si la corrés antes,

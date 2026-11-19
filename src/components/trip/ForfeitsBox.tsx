@@ -101,7 +101,7 @@ export default function ForfeitsBox({ detail, me, onChange, canReport = true, bo
         ¿Alguien se levantó tarde o terminó roto? Reportalo y elegí la prenda (o que toque una al azar): si la mayoría lo valida, la tiene que cumplir.
       </p>
       {canReport && (
-        <button type="button" className="btn btn--ghost btn--block forfeit-report" onClick={() => setReporting(true)}>
+        <button type="button" className="btn btn--ghost btn--block forfeit-report" data-tour="infraction" onClick={() => setReporting(true)}>
           Reportar infracción
         </button>
       )}

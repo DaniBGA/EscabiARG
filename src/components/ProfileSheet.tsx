@@ -178,7 +178,7 @@ export default function ProfileSheet({ open, onClose, me, user, onChange, onShow
 
       {onShowTutorial && (
         <button type="button" className="btn btn--ghost btn--block profile-terms" onClick={onShowTutorial}>
-          🎓 Ver el tutorial
+          🎓 Tutorial y sala de práctica
         </button>
       )}
       <button type="button" className="btn btn--ghost btn--block profile-terms" onClick={() => setShowTerms(true)}>

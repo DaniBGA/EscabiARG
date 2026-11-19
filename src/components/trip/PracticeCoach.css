@@ -1,0 +1,148 @@
+/* Guía de la sala de práctica: tarjeta fija abajo (no tapa los botones de arriba) */
+.coach {
+  position: fixed;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 40;
+  width: min(calc(100% - 24px), 480px);
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 12px 14px 14px;
+  transform: translateX(-50%);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--paper) var(--grain);
+  color: var(--paper-ink);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 5px 5px 0 var(--ink);
+  animation: coach-in 0.3s ease-out both;
+}
+
+.coach-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.coach-progress {
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+
+.coach-top-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.coach-link {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--paper-ink);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: underline;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.coach-body {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.coach-emoji {
+  flex: none;
+  font-size: 2.1rem;
+  line-height: 1.1;
+}
+
+.coach-title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: 1.2rem;
+  line-height: 1.15;
+}
+
+.coach-text {
+  margin-top: 4px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.coach-extras {
+  margin: 8px 0 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.88rem;
+}
+
+.coach-extras li + li {
+  margin-top: 4px;
+}
+
+.coach-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.coach-next {
+  min-width: 140px;
+}
+
+.coach-pill {
+  position: fixed;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 40;
+  padding: 10px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--amber);
+  color: var(--ink);
+  font-family: var(--font-label);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 3px 3px 0 var(--ink);
+  cursor: pointer;
+}
+
+/* El botón que hay que tocar late y brilla (y queda arriba, lejos de la guía) */
+.coach-target {
+  scroll-margin-top: 16vh;
+  position: relative;
+  z-index: 2;
+  outline: 3px solid var(--amber) !important;
+  outline-offset: 4px;
+  animation: coach-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes coach-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(242, 167, 27, 0.7); }
+  50% { box-shadow: 0 0 0 10px rgba(242, 167, 27, 0); }
+}
+
+@keyframes coach-in {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach,
+  .coach-target {
+    animation: none;
+  }
+}
+
+/* En la práctica sobra lugar abajo, así cualquier botón puede quedar arriba de la guía */
+.trip-screen.is-practice .trip-main {
+  padding-bottom: 50vh;
+}
